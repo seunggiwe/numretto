@@ -226,33 +226,58 @@
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+  /* ── LOBBY ── */
+  .lobby-player{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:4px;
+    background:var(--panel);border:1px solid var(--border);
+    font-size:0.75rem;
+  }
+  .lobby-player.is-me{border-color:var(--accent);}
+  .lobby-player .lp-name{flex:1;letter-spacing:1px;}
+  .lobby-player .lp-host{
+    font-size:0.55rem;background:var(--accent);color:#000;
+    padding:2px 6px;border-radius:2px;font-weight:700;letter-spacing:1px;
+  }
+  .lobby-player .lp-you{
+    font-size:0.55rem;border:1px solid var(--accent);color:var(--accent);
+    padding:2px 6px;border-radius:2px;letter-spacing:1px;
+  }
 </style>
 </head>
 <body>
 
-<!-- TITLE -->
+<!-- TITLE: 接続画面 -->
 <div class="overlay" id="titleOverlay">
   <div class="overlay-card">
     <h1>NUMLETTO</h1>
     <p>1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
-    <div class="subtitle">— GAME SETUP —</div>
+    <div class="subtitle">— 接続 —</div>
     <div class="setup-options">
       <div class="setup-row">
-        <label>プレイヤー数</label>
-        <select id="playerCountSelect" onchange="updateNameFields()">
-          <option value="2">2人</option><option value="3">3人</option>
-          <option value="4">4人</option><option value="5">5人</option>
-          <option value="6">6人</option>
-        </select>
+        <label>あなたの名前</label>
+        <input type="text" id="myNameInput" placeholder="名前を入力" maxlength="12">
       </div>
-      <div id="nameFields"></div>
+      <div class="setup-row">
+        <label>合言葉</label>
+        <input type="text" id="roomIdInput" placeholder="友人と同じ合言葉を入力" style="text-transform:uppercase;">
+      </div>
     </div>
-    <div class="setup-row" style="margin-top:4px;">
-      <label>ルームID</label>
-      <input type="text" id="roomIdInput" placeholder="空欄で自動生成（ホスト）" style="text-transform:uppercase;">
-    </div>
-    <p style="font-size:0.6rem;color:var(--muted);text-align:left;margin-top:4px;">友人と同じIDを入力すると同じ部屋に入れます</p>
-    <button class="btn primary" onclick="startGame()" style="width:100%;padding:14px;font-size:0.85rem;margin-top:12px;">DEAL TILES →</button>
+    <p style="font-size:0.6rem;color:var(--muted);text-align:left;margin-top:4px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
+    <button class="btn primary" id="btnConnect" onclick="connectAction()" style="width:100%;padding:14px;font-size:0.85rem;margin-top:12px;">接続する →</button>
+  </div>
+</div>
+
+<!-- LOBBY: 待合室オーバーレイ -->
+<div class="overlay hidden" id="lobbyOverlay">
+  <div class="overlay-card">
+    <h1>NUMLETTO</h1>
+    <div class="subtitle" id="lobbyRoomLabel">— 合言葉: — —</div>
+    <p style="color:var(--muted);font-size:0.75rem;margin-bottom:16px;">参加者が揃ったらホストがゲームを開始してください</p>
+    <div id="lobbyPlayerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;min-height:80px;"></div>
+    <button class="btn primary" id="btnStartGame" onclick="hostStartGame()" style="width:100%;padding:14px;font-size:0.85rem;display:none;">ゲーム開始 →</button>
+    <p id="lobbyWaitMsg" style="font-size:0.68rem;color:var(--muted);">ホストがゲームを開始するまでお待ちください…</p>
   </div>
 </div>
 
@@ -332,45 +357,144 @@
 // ════════════════════════════════════════════
 //  ONLINE: WebSocket (PartyKit)
 // ════════════════════════════════════════════
-const PARTYKIT_URL = 'https://numletto-server.seunggiwe.partykit.dev';
+const PARTYKIT_URL = 'https://numeretto-server.seunggiwe.partykit.dev';
 let ws = null;
+let myName = '';
+let myConnId = null; // サーバーから割り当てられるID（ホスト判定用）
+let amIHost = false;
+let currentRoomId = '';
+
+// 「接続する」ボタン
+function connectAction(){
+  const name = document.getElementById('myNameInput').value.trim();
+  const room = document.getElementById('roomIdInput').value.trim().toUpperCase();
+  if(!name){ alert('名前を入力してください'); return; }
+  if(!room){ alert('合言葉を入力してください'); return; }
+  myName = name;
+  currentRoomId = room;
+  document.getElementById('btnConnect').disabled = true;
+  document.getElementById('btnConnect').textContent = '接続中…';
+  connectToRoom(room);
+}
 
 function connectToRoom(roomId) {
   if(ws){ ws.close(); ws=null; }
   ws = new WebSocket(`${PARTYKIT_URL}/party/${roomId}`);
+
   ws.onopen = () => {
-    log(`ルーム [${roomId}] に接続しました。`,'highlight');
-    updateRoomStatus(roomId);
+    // 名前を送って参加登録
+    ws.send(JSON.stringify({ type: 'join', name: myName }));
   };
+
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
+
+    // 待合室情報
+    if(msg.type === 'lobby'){
+      showLobby(msg.players, roomId);
+    }
+
+    // ゲーム開始（全員分のGが届く）
     if(msg.type === 'sync'){
       G = msg.G;
       setupPhase = null;
       act = null;
       document.getElementById('titleOverlay').classList.add('hidden');
+      document.getElementById('lobbyOverlay').classList.add('hidden');
       document.getElementById('actionPanel').style.display='';
       document.getElementById('centerZone').style.display='';
       document.getElementById('phaseHint').style.display='';
+      document.getElementById('hdrPool').textContent=`ROOM: ${currentRoomId}`;
       render();
     }
-    if(msg.type === 'waiting'){
-      log('他のプレイヤーを待っています…');
+
+    // リセット
+    if(msg.type === 'reset'){
+      G = null; setupPhase = null; act = null;
+      document.getElementById('lobbyOverlay').classList.remove('hidden');
     }
   };
-  ws.onerror = () => log('接続エラーが発生しました。','error');
-  ws.onclose = () => log('サーバーから切断されました。','error');
+
+  ws.onerror = () => {
+    alert('接続に失敗しました。合言葉や通信環境を確認してください。');
+    document.getElementById('btnConnect').disabled = false;
+    document.getElementById('btnConnect').textContent = '接続する →';
+  };
+  ws.onclose = () => {
+    if(G) log('サーバーから切断されました。','error');
+  };
+}
+
+function showLobby(players, roomId){
+  // タイトル→待合室へ
+  document.getElementById('titleOverlay').classList.add('hidden');
+  document.getElementById('lobbyOverlay').classList.remove('hidden');
+  document.getElementById('lobbyRoomLabel').textContent = `— 合言葉: ${roomId} —`;
+
+  // 自分がホストか（players配列の先頭がホスト）
+  amIHost = players.length > 0 && players[0].isHost && players[0].name === myName;
+
+  // プレイヤーリスト描画
+  const list = document.getElementById('lobbyPlayerList');
+  list.innerHTML = '';
+  players.forEach(p => {
+    const isMe = p.name === myName;
+    const div = document.createElement('div');
+    div.className = `lobby-player${isMe?' is-me':''}`;
+    div.innerHTML = `
+      <span class="lp-name">${p.name}</span>
+      ${p.isHost ? '<span class="lp-host">HOST</span>' : ''}
+      ${isMe ? '<span class="lp-you">YOU</span>' : ''}`;
+    list.appendChild(div);
+  });
+
+  // ホストにだけ「ゲーム開始」ボタンを表示
+  const btnStart = document.getElementById('btnStartGame');
+  const waitMsg = document.getElementById('lobbyWaitMsg');
+  if(amIHost){
+    btnStart.style.display = '';
+    btnStart.textContent = `ゲーム開始 (${players.length}人) →`;
+    btnStart.disabled = players.length < 2;
+    waitMsg.style.display = 'none';
+  } else {
+    btnStart.style.display = 'none';
+    waitMsg.style.display = '';
+  }
+}
+
+// ホストがゲーム開始
+function hostStartGame(){
+  if(!amIHost || !ws) return;
+
+  // 待合室のプレイヤーリストから名前を取得してG生成
+  const items = document.getElementById('lobbyPlayerList').querySelectorAll('.lp-name');
+  const names = [...items].map(el => el.textContent.trim());
+  const count = names.length;
+
+  const nums = shuffle([...Array(100)].map((_,i)=>i+1));
+  let idx = 0;
+  const HAND_BLIND = getHandBlind(count);
+  const HAND_REVEAL = getHandReveal(count);
+  const players = [];
+  for(let p = 0; p < count; p++){
+    const hand = nums.slice(idx, idx+HAND_BLIND).map(n=>({tile:makeTile(n),revealed:false}));
+    idx += HAND_BLIND;
+    const revealTiles = nums.slice(idx, idx+HAND_REVEAL).map(makeTile);
+    idx += HAND_REVEAL;
+    revealTiles.sort((a,b)=>a.num-b.num);
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
+  }
+  G = {players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL};
+  setupPhase = {playerIdx:0,currentRevealIdx:0,selectedInHand:false};
+  act = null;
+
+  ws.send(JSON.stringify({ type: 'start', G }));
 }
 
 function syncToServer(type='action'){
   if(ws && ws.readyState === WebSocket.OPEN){
     ws.send(JSON.stringify({type, G}));
   }
-}
-
-function updateRoomStatus(roomId){
-  const el=document.getElementById('hdrPool');
-  if(el) el.textContent=`ROOM: ${roomId}`;
 }
 
 // ════════════════════════════════════════════
@@ -411,71 +535,8 @@ function log(msg,cls=''){
 }
 
 // ════════════════════════════════════════════
-//  TITLE SCREEN INIT
+//  GAME START (ホストのみ hostStartGame() で実行)
 // ════════════════════════════════════════════
-function updateNameFields(){
-  const count=parseInt(document.getElementById('playerCountSelect').value);
-  const container=document.getElementById('nameFields');
-  // preserve existing values
-  const existing=[];
-  for(let i=1;i<=6;i++){
-    const el=document.getElementById(`p${i}Name`);
-    existing.push(el?el.value:`PLAYER ${i}`);
-  }
-  container.innerHTML='';
-  for(let i=1;i<=count;i++){
-    const row=document.createElement('div');
-    row.className='setup-row';
-    row.innerHTML=`<label>P${i} 名前</label><input type="text" id="p${i}Name" value="${existing[i-1]||`PLAYER ${i}`}">`;
-    container.appendChild(row);
-  }
-}
-// 初期表示（2人分）
-document.addEventListener('DOMContentLoaded',updateNameFields);
-
-// ════════════════════════════════════════════
-//  GAME START
-// ════════════════════════════════════════════
-function startGame(){
-  const count=parseInt(document.getElementById('playerCountSelect').value);
-  const names=[];
-  for(let i=1;i<=count;i++){
-    const el=document.getElementById(`p${i}Name`);
-    names.push(el?el.value.trim()||`PLAYER ${i}`:`PLAYER ${i}`);
-  }
-  const nums=shuffle([...Array(100)].map((_,i)=>i+1));
-  let idx=0;
-  const HAND_BLIND=getHandBlind(count);
-  const HAND_REVEAL=getHandReveal(count);
-  const players=[];
-  for(let p=0;p<count;p++){
-    const hand=nums.slice(idx,idx+HAND_BLIND).map(n=>({tile:makeTile(n),revealed:false}));
-    idx+=HAND_BLIND;
-    const revealTiles=nums.slice(idx,idx+HAND_REVEAL).map(makeTile);
-    idx+=HAND_REVEAL;
-    // revealTilesを昇順ソートして提示（序列が崩れないように順番に配置しやすくする）
-    revealTiles.sort((a,b)=>a.num-b.num);
-    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
-  }
-  G={players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL};
-  // discard entries: {tile, discardedBy, faceUp, isNew}
-  // setupPhase: currentRevealIdx = which of the 5 tiles is being placed now (0-4)
-  setupPhase={playerIdx:0,currentRevealIdx:0,selectedInHand:false};
-  act=null;
-  // ルームID取得・生成
-  const roomInput = document.getElementById('roomIdInput');
-  const roomId = (roomInput.value.trim().toUpperCase()) || Math.random().toString(36).slice(2,7).toUpperCase();
-  roomInput.value = roomId;
-
-  document.getElementById('titleOverlay').classList.add('hidden');
-  document.getElementById('phaseHint').style.display='';
-  log(`ゲーム開始（${count}人）— 全員が表タイル挿入位置を決めます。`,'highlight');
-  render();
-
-  // サーバーに接続してGを送信
-  connectToRoom(roomId);
-  setTimeout(()=>syncToServer('start'), 400);
-}
 
 // ════════════════════════════════════════════
 //  MASTER RENDER
@@ -591,7 +652,7 @@ function insertRevealTile(gapIdx){
       document.getElementById('actionPanel').style.display='';
       document.getElementById('centerZone').style.display='';
       log('全員の配置完了！ゲームスタート！','highlight');
-      syncToServer('start');
+      syncToServer();
       render();return;
     }
   }
