@@ -250,34 +250,44 @@
 
 <!-- TITLE: 接続画面 -->
 <div class="overlay" id="titleOverlay">
-  <div class="overlay-card">
+  <div class="overlay-card" style="max-width:400px;">
     <h1>NUMLETTO</h1>
-    <p>1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
-    <div class="subtitle">— 接続 —</div>
-    <div class="setup-options">
+    <p style="margin-bottom:24px;">1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
+    <div class="setup-options" style="gap:12px;">
       <div class="setup-row">
-        <label>あなたの名前</label>
-        <input type="text" id="myNameInput" placeholder="名前を入力" maxlength="12">
+        <label>名 前</label>
+        <input type="text" id="myNameInput" placeholder="あなたの名前" maxlength="12"
+          style="font-size:0.85rem;padding:10px 12px;"
+          onkeydown="if(event.key==='Enter')connectAction()">
       </div>
       <div class="setup-row">
         <label>合言葉</label>
-        <input type="text" id="roomIdInput" placeholder="友人と同じ合言葉を入力" style="text-transform:uppercase;">
+        <input type="text" id="roomIdInput" placeholder="ルーム合言葉"
+          style="text-transform:uppercase;font-size:0.85rem;padding:10px 12px;"
+          onkeydown="if(event.key==='Enter')connectAction()">
       </div>
     </div>
-    <p style="font-size:0.6rem;color:var(--muted);text-align:left;margin-top:4px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
-    <button class="btn primary" id="btnConnect" onclick="connectAction()" style="width:100%;padding:14px;font-size:0.85rem;margin-top:12px;">接続する →</button>
+    <p style="font-size:0.6rem;color:var(--muted);margin:10px 0 16px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
+    <button class="btn primary" id="btnConnect" onclick="connectAction()"
+      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
+    <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
   </div>
 </div>
 
-<!-- LOBBY: 待合室オーバーレイ -->
+<!-- LOBBY: 待合室 -->
 <div class="overlay hidden" id="lobbyOverlay">
-  <div class="overlay-card">
+  <div class="overlay-card" style="max-width:400px;">
     <h1>NUMLETTO</h1>
-    <div class="subtitle" id="lobbyRoomLabel">— 合言葉: — —</div>
-    <p style="color:var(--muted);font-size:0.75rem;margin-bottom:16px;">参加者が揃ったらホストがゲームを開始してください</p>
-    <div id="lobbyPlayerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;min-height:80px;"></div>
-    <button class="btn primary" id="btnStartGame" onclick="hostStartGame()" style="width:100%;padding:14px;font-size:0.85rem;display:none;">ゲーム開始 →</button>
-    <p id="lobbyWaitMsg" style="font-size:0.68rem;color:var(--muted);">ホストがゲームを開始するまでお待ちください…</p>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+      <span class="subtitle" id="lobbyRoomLabel" style="margin-bottom:0;">ROOM: —</span>
+    </div>
+    <p style="color:var(--muted);font-size:0.68rem;margin-bottom:16px;">参加者が揃ったらホストがゲームを開始してください</p>
+    <div id="lobbyPlayerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;min-height:60px;"></div>
+    <button class="btn primary" id="btnStartGame" onclick="hostStartGame()"
+      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;display:none;">GAME START</button>
+    <p id="lobbyWaitMsg" style="font-size:0.65rem;color:var(--muted);margin-top:4px;"></p>
+    <button class="btn" onclick="leaveLobby()"
+      style="width:100%;padding:8px;font-size:0.68rem;margin-top:10px;border-color:#444;color:#666;">← 退出する</button>
   </div>
 </div>
 
@@ -368,13 +378,25 @@ let currentRoomId = '';
 function connectAction(){
   const name = document.getElementById('myNameInput').value.trim();
   const room = document.getElementById('roomIdInput').value.trim().toUpperCase();
-  if(!name){ alert('名前を入力してください'); return; }
-  if(!room){ alert('合言葉を入力してください'); return; }
+  const errEl = document.getElementById('connectError');
+  if(!name){ errEl.textContent='名前を入力してください'; return; }
+  if(!room){ errEl.textContent='合言葉を入力してください'; return; }
+  errEl.textContent='';
   myName = name;
   currentRoomId = room;
   document.getElementById('btnConnect').disabled = true;
-  document.getElementById('btnConnect').textContent = '接続中…';
+  document.getElementById('btnConnect').textContent = 'CONNECTING…';
   connectToRoom(room);
+}
+
+// 待合室から退出
+function leaveLobby(){
+  if(ws){ ws.close(); ws=null; }
+  myName=''; currentRoomId=''; amIHost=false;
+  document.getElementById('lobbyOverlay').classList.add('hidden');
+  document.getElementById('titleOverlay').classList.remove('hidden');
+  document.getElementById('btnConnect').disabled=false;
+  document.getElementById('btnConnect').textContent='ENTER ROOM';
 }
 
 function connectToRoom(roomId) {
@@ -394,17 +416,19 @@ function connectToRoom(roomId) {
       showLobby(msg.players, roomId);
     }
 
-    // ゲーム開始（全員分のGが届く）
+    // ゲーム開始 / アクション同期
     if(msg.type === 'sync'){
       G = msg.G;
-      setupPhase = null;
+      // G.setupPhaseがあればsetup中、なければゲーム中
+      setupPhase = G.setupPhase || null;
       act = null;
       document.getElementById('titleOverlay').classList.add('hidden');
       document.getElementById('lobbyOverlay').classList.add('hidden');
-      document.getElementById('actionPanel').style.display='';
-      document.getElementById('centerZone').style.display='';
-      document.getElementById('phaseHint').style.display='';
-      document.getElementById('hdrPool').textContent=`ROOM: ${currentRoomId}`;
+      // setupPhase中はcenterZone/actionPanelは非表示
+      document.getElementById('centerZone').style.display = setupPhase ? 'none' : '';
+      document.getElementById('actionPanel').style.display = setupPhase ? 'none' : '';
+      document.getElementById('phaseHint').style.display = '';
+      document.getElementById('hdrPool').textContent = `ROOM: ${currentRoomId}`;
       render();
     }
 
@@ -416,9 +440,12 @@ function connectToRoom(roomId) {
   };
 
   ws.onerror = () => {
-    alert('接続に失敗しました。合言葉や通信環境を確認してください。');
+    const errEl = document.getElementById('connectError');
+    if(errEl) errEl.textContent = '接続に失敗しました。通信環境を確認してください。';
     document.getElementById('btnConnect').disabled = false;
-    document.getElementById('btnConnect').textContent = '接続する →';
+    document.getElementById('btnConnect').textContent = 'ENTER ROOM';
+    document.getElementById('titleOverlay').classList.remove('hidden');
+    document.getElementById('lobbyOverlay').classList.add('hidden');
   };
   ws.onclose = () => {
     if(G) log('サーバーから切断されました。','error');
@@ -484,8 +511,14 @@ function hostStartGame(){
     revealTiles.sort((a,b)=>a.num-b.num);
     players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
   }
-  G = {players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL};
-  setupPhase = {playerIdx:0,currentRevealIdx:0,selectedInHand:false};
+  G = {
+    players, currentPlayer:0,
+    pool:nums.slice(idx).map(makeTile),
+    discard:[], round:1, gameOver:false,
+    handSize:HAND_BLIND+HAND_REVEAL,
+    // setupPhaseをGに内包して全員と同期
+    setupPhase:{playerIdx:0,currentRevealIdx:0,selectedInHand:false,useRev:false}
+  };
   act = null;
 
   ws.send(JSON.stringify({ type: 'start', G }));
@@ -606,14 +639,14 @@ function renderSetup(){
       el.className=`tile face-up to-place${showGaps?' src-selected':''}`;
       el.textContent=displayNum;
       el.title=curTile.rev?`逆さで使用: ${curTile.rev}`:'';
-      el.onclick=()=>{ setupPhase.selectedInHand=!setupPhase.selectedInHand; render(); };
+      el.onclick=()=>{ setupPhase.selectedInHand=!setupPhase.selectedInHand; G.setupPhase={...setupPhase}; syncToServer(); render(); };
       rh.appendChild(el);
       // ひっくり返すボタン
       if(curTile.rev){
         const fb=document.createElement('button');
         fb.className='flip-btn';fb.style.marginLeft='8px';
         fb.textContent=useRevSetup?`⟳ 正向き (${curTile.num})`:`⟳ ひっくり返す (→${curTile.rev})`;
-        fb.onclick=(e)=>{e.stopPropagation();setupPhase.useRev=!setupPhase.useRev;render();};
+        fb.onclick=(e)=>{e.stopPropagation();setupPhase.useRev=!setupPhase.useRev;G.setupPhase={...setupPhase};syncToServer();render();};
         rh.appendChild(fb);
       }
     }
@@ -631,15 +664,14 @@ function renderSetup(){
 
 function insertRevealTile(gapIdx){
   const sp=setupPhase;
-  if(!sp.selectedInHand)return;
+  if(!sp||!sp.selectedInHand)return;
   const player=G.players[sp.playerIdx];
   const rawTile=player.revealTiles[sp.currentRevealIdx];
-  // 逆さまで使う場合は num/rev を入れ替えた tile を生成
   const useRevSetup=sp.useRev===true&&rawTile.rev!=null;
   const tile=useRevSetup?{num:rawTile.rev,rev:rawTile.num}:rawTile;
   player.hand.splice(gapIdx,0,{tile,revealed:true});
   sp.selectedInHand=false;
-  sp.useRev=false; // 次のタイルはリセット
+  sp.useRev=false;
   log(`${player.name}: [${tile.num}] を位置 ${gapIdx+1} に挿入。`);
   sp.currentRevealIdx++;
   if(sp.currentRevealIdx>=player.revealTilesTotal){
@@ -648,7 +680,10 @@ function insertRevealTile(gapIdx){
     sp.playerIdx++;
     sp.currentRevealIdx=0;
     if(sp.playerIdx>=G.players.length){
-      setupPhase=null;G.currentPlayer=0;G.round=1;
+      // 全員配置完了 → setupPhase終了
+      setupPhase=null;
+      delete G.setupPhase;
+      G.currentPlayer=0;G.round=1;
       document.getElementById('actionPanel').style.display='';
       document.getElementById('centerZone').style.display='';
       log('全員の配置完了！ゲームスタート！','highlight');
@@ -656,6 +691,9 @@ function insertRevealTile(gapIdx){
       render();return;
     }
   }
+  // setupPhaseの変更をGに反映してsync
+  G.setupPhase = {...sp};
+  syncToServer();
   render();
 }
 
