@@ -529,7 +529,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">beta 0.0.0</span>
+      <span class="version-badge" onclick="openChangelog()">beta 2.0.0</span>
     </div>
   </div>
 </div>
@@ -595,7 +595,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 0.0.0</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.0</span>
   </div>
 </header>
 
@@ -1622,7 +1622,7 @@ const EFFECT_CARDS = [
   {
     id:'donguri',
     name:'どんぐりころころ',
-    desc:'任意の表向きタイルを1枚裏返す。',
+    desc:'任意の表向きタイルを1枚裏返す。\n自分の手札も対象にできる。',
     color:'#f0a030',
   },
   {
@@ -1646,7 +1646,7 @@ const EFFECT_CARDS = [
   {
     id:'ladyfirst',
     name:'レディーファースト',
-    desc:'自分以外のプレイヤーを1人選択。',
+    desc:'自分以外のプレイヤーを1人選択。\nそのプレイヤーのターンになる。',
     color:'#e070f0',
   },
 ];
@@ -2289,6 +2289,7 @@ function initVersion(){
   });
 }
 
+document.addEventListener("DOMContentLoaded", initVersion);
 initVersion();
 </script>
 </body>
