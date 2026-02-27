@@ -1837,11 +1837,9 @@ function checkEffectCardSync(){
   if(!G||!G.act)return;
   if(G.act.phase==='awaitEffectCard'&&G.act.effectCard){
     const isMe = !myName||G.players[G.currentPlayer].name===myName;
-    if(!isMe){
-      // 他プレイヤー: syncで受け取ったカードidでモーダル表示（自動クローズ）
-      const card = EFFECT_CARDS.find(c=>c.id===G.act.effectCard);
-      if(card) openEffectCardForSpectator(card);
-    }
+    if(isMe) return; // 本人はdrawEffectCard()でモーダル済み
+    const card = EFFECT_CARDS.find(c=>c.id===G.act.effectCard);
+    if(card) openEffectCardForSpectator(card);
   } else {
     closeEffectCardModal();
   }
