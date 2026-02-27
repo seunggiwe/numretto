@@ -293,30 +293,53 @@
               donguri-glow 0.9s ease forwards !important;
     z-index:50;
   }
-  /* ルーレットモーダル */
+  /* ルーレットモーダル（スロット式） */
   #rouletteModal{
     position:fixed;inset:0;background:rgba(0,0,0,0.88);
     display:flex;align-items:center;justify-content:center;
     z-index:410;backdrop-filter:blur(8px);
-    opacity:0;pointer-events:none;transition:opacity 0.2s;
+    opacity:0;pointer-events:none;transition:opacity 0.25s;
   }
   #rouletteModal.show{opacity:1;pointer-events:all;}
   #rouletteInner{
     background:var(--surface);border:2px solid #ff8c00;
-    border-radius:12px;padding:32px 36px;max-width:380px;width:92%;
+    border-radius:12px;padding:28px 36px;max-width:380px;width:92%;
     text-align:center;
   }
   #rouletteTitle{
-    font-family:'Bebas Neue',cursive;font-size:1.6rem;letter-spacing:4px;
-    color:#ff8c00;margin-bottom:20px;
+    font-family:'Bebas Neue',cursive;font-size:1.5rem;letter-spacing:4px;
+    color:#ff8c00;margin-bottom:18px;
   }
-  #rouletteDisplay{
-    font-family:'Bebas Neue',cursive;font-size:3rem;letter-spacing:6px;
-    color:var(--text);min-height:72px;margin-bottom:12px;
-    transition:color 0.08s;
+  /* スロットウィンドウ */
+  #rouletteWindow{
+    overflow:hidden;height:72px;
+    border:2px solid #ff8c00;border-radius:6px;
+    background:var(--bg);margin:0 auto 8px;
+    position:relative;
   }
+  /* 上下グラデーションマスク */
+  #rouletteWindow::before,#rouletteWindow::after{
+    content:'';position:absolute;left:0;right:0;height:20px;z-index:2;pointer-events:none;
+  }
+  #rouletteWindow::before{top:0;background:linear-gradient(to bottom,var(--bg),transparent);}
+  #rouletteWindow::after{bottom:0;background:linear-gradient(to top,var(--bg),transparent);}
+  /* 中央ハイライトライン */
+  #rouletteLine{
+    position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+    height:2px;background:#ff8c00;z-index:3;opacity:0.6;
+  }
+  #rouletteTrack{
+    display:flex;flex-direction:column;
+    transition:transform 0s;
+  }
+  .roulette-item{
+    height:72px;display:flex;align-items:center;justify-content:center;
+    font-family:'Bebas Neue',cursive;font-size:2.2rem;letter-spacing:4px;
+    color:var(--text);flex-shrink:0;
+  }
+  .roulette-item.winner{color:#ff8c00;}
   #rouletteResult{
-    font-size:0.7rem;color:#888;letter-spacing:2px;min-height:24px;margin-bottom:20px;
+    font-size:0.65rem;color:#888;letter-spacing:2px;min-height:20px;margin-top:8px;
   }
 
   /* レディーファースト: プレイヤー選択 */
@@ -659,7 +682,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">beta 2.0.5</span>
+      <span class="version-badge" onclick="openChangelog()">beta 2.0.6</span>
     </div>
   </div>
 </div>
@@ -692,7 +715,10 @@
 <div id="rouletteModal">
   <div id="rouletteInner">
     <div id="rouletteTitle">😈 お前のものは俺の物</div>
-    <div id="rouletteDisplay">—</div>
+    <div id="rouletteWindow">
+      <div id="rouletteLine"></div>
+      <div id="rouletteTrack"></div>
+    </div>
     <div id="rouletteResult"></div>
   </div>
 </div>
@@ -740,7 +766,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.5</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.6</span>
   </div>
 </header>
 
@@ -1151,23 +1177,24 @@ function playSound(type){
       });
     },
     omaeno: ()=>{
-      // お前のものは俺の物SE: ずっしり重い交換音
-      const o1=AC.createOscillator(); const g1=AC.createGain();
-      o1.type='sawtooth'; o1.frequency.setValueAtTime(200,t);
-      o1.frequency.linearRampToValueAtTime(80,t+0.4);
-      g1.gain.setValueAtTime(0.15*masterVolume,t);
-      g1.gain.exponentialRampToValueAtTime(0.001,t+0.45);
-      const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=800;
-      o1.connect(lp); lp.connect(g1); g1.connect(AC.destination);
-      o1.start(t); o1.stop(t+0.46);
-      // 2音目（入れ替わり感）
-      const o2=AC.createOscillator(); const g2=AC.createGain();
-      o2.type='sawtooth'; o2.frequency.setValueAtTime(80,t+0.2);
-      o2.frequency.linearRampToValueAtTime(200,t+0.5);
-      g2.gain.setValueAtTime(0.12*masterVolume,t+0.2);
-      g2.gain.exponentialRampToValueAtTime(0.001,t+0.55);
-      o2.connect(lp); lp.connect(g2); g2.connect(AC.destination);
-      o2.start(t+0.2); o2.stop(t+0.56);
+      // お前のものは俺の物SE: 控えめなポップ音
+      const o=AC.createOscillator(); const g=AC.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(440,t);
+      o.frequency.linearRampToValueAtTime(660,t+0.08);
+      g.gain.setValueAtTime(0.07*masterVolume,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.connect(g); g.connect(AC.destination);
+      o.start(t); o.stop(t+0.19);
+    },
+    rouletteClick: ()=>{
+      // ルーレットSE: 軽いカチッ音
+      const buf=AC.createBuffer(1,AC.sampleRate*0.03,AC.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.3;
+      const src=AC.createBufferSource(); src.buffer=buf;
+      const g=AC.createGain(); g.gain.value=0.04*masterVolume;
+      const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2000;
+      src.connect(hp); hp.connect(g); g.connect(AC.destination); src.start(t);
     },
     kousoku: ()=>{
       // 高速回転SE: 急上昇→急降下のピッチ＋ウィーン音
@@ -1962,40 +1989,67 @@ function selectEffectCard(idx){
 // お前のものは俺の物: ルーレット
 function startRoulette(cp){
   const others=G.players.map((_,i)=>i).filter(i=>i!==cp);
+  const finalIdx=others[Math.floor(Math.random()*others.length)];
+  // syncで全員にfinalIdxを配信
+  if(act){
+    act.phase='awaitRoulette';
+    act.rouletteFinal=finalIdx;
+    act.rouletteCP=cp;
+    G.act=act;
+    syncToServer();
+  }
+  runRouletteAnim(cp, finalIdx, ()=>{
+    // 交換実行
+    const myHand=G.players[cp].hand;
+    G.players[cp].hand=G.players[finalIdx].hand;
+    G.players[finalIdx].hand=myHand;
+    log(`😈 お前のものは俺の物！${G.players[cp].name} と ${G.players[finalIdx].name} の手札が入れ替わった！`,'highlight');
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  });
+}
+
+function runRouletteAnim(cp, finalIdx, onDone){
+  const others=G.players.map((_,i)=>i).filter(i=>i!==cp);
   const modal=document.getElementById('rouletteModal');
-  const display=document.getElementById('rouletteDisplay');
+  const track=document.getElementById('rouletteTrack');
   const result=document.getElementById('rouletteResult');
   result.textContent='';
   modal.classList.add('show');
-  playSound('omaeno');
-  // ルーレットアニメ: 高速→低速→停止
-  let frame=0;
-  const totalFrames=40;
-  const finalIdx=others[Math.floor(Math.random()*others.length)];
-  let cur=0;
-  const spin=setInterval(()=>{
-    frame++;
-    const delay=frame<20?50:50+Math.pow(frame-20,1.6)*3;
-    cur=others[Math.floor(Math.random()*others.length)];
-    display.textContent=G.players[cur].name;
-    display.style.color=frame>30?'#ff8c00':'var(--text)';
-    if(frame>=totalFrames){
-      clearInterval(spin);
-      display.textContent=G.players[finalIdx].name;
-      display.style.color='#ff8c00';
-      result.textContent='手札を交換します！';
-      setTimeout(()=>{
-        modal.classList.remove('show');
-        // 交換実行
-        const myHand=G.players[cp].hand;
-        G.players[cp].hand=G.players[finalIdx].hand;
-        G.players[finalIdx].hand=myHand;
-        log(`😈 お前のものは俺の物！${G.players[cp].name} と ${G.players[finalIdx].name} の手札が入れ替わった！`,'highlight');
-        act=null;G.act=null;
-        nextTurn();syncToServer();render();
-      },1200);
-    }
-  },50);
+
+  // スロットアイテムを生成（ループ用に多めに）
+  const items=[...others,...others,...others,...others];
+  // finalIdxが最後の周回中央に来るよう調整
+  const winnerPosInLast=others.indexOf(finalIdx)+others.length*2;
+  track.innerHTML=items.map((pi,i)=>`
+    <div class="roulette-item${i===winnerPosInLast?' winner':''}">${G.players[pi].name}</div>
+  `).join('');
+
+  // 初期位置: 先頭から開始
+  const itemH=72;
+  track.style.transition='none';
+  track.style.transform='translateY(0)';
+
+  // 目標Y: winnerPosInLast番目のアイテムが中央に来る位置
+  const targetY=-(winnerPosInLast*itemH);
+
+  // アニメ開始
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      // クリック音のみ（静か）
+      playSound('rouletteClick');
+      track.style.transition=`transform 2.2s cubic-bezier(0.23,1,0.32,1)`;
+      track.style.transform=`translateY(${targetY}px)`;
+    });
+  });
+
+  setTimeout(()=>{
+    result.textContent=`${G.players[finalIdx].name} と交換！`;
+    setTimeout(()=>{
+      modal.classList.remove('show');
+      onDone();
+    },900);
+  }, 2600);
 }
 
 // 観戦者: 選択アニメを再生してモーダルを閉じる
@@ -2053,11 +2107,19 @@ function afterEffectCardUsed(){
     log(`✨ ダブル連番ボーナス！もう1枚引く！`,'highlight');
     drawEffectCard();
   } else if(act&&act.ikkaExtra){
-    // 一か八か表: さらにもう1ターン継続
-    delete act.ikkaExtra;
-    act=null;G.act=null;
-    log(`👑 一か八か表ボーナス！もう1ターン！`,'highlight');
-    syncToServer();render();
+    if(act.ikkaExtra2){
+      // 1回目: もう1ターン残っている
+      delete act.ikkaExtra2;
+      act=null;G.act=null;
+      log(`👑 一か八か表ボーナス！あと1ターン！`,'highlight');
+      syncToServer();render();
+    } else {
+      // 2回目: 終了
+      delete act.ikkaExtra;
+      act=null;G.act=null;
+      log(`👑 一か八か表ボーナス終了！`,'highlight');
+      syncToServer();render();
+    }
   } else {
     act=null;G.act=null;
     nextTurn();syncToServer();render();
@@ -2090,15 +2152,14 @@ function useEffectCard(){
     const skipped=G.players[skippedIdx].name;
     log(`⏭ ${skipped} をスキップ！`,'highlight');
     act=null;G.act=null;
-    nextTurn(); nextTurn(); // 方向込みで1人スキップ
+    G.currentPlayer=skippedIdx; // スキップされる人のターンにして
+    nextTurn();                  // すぐターン終了 → 見かけ上スキップ
     syncToServer();render();
   } else if(id==='kousokukaiten'){
     G.direction=(G.direction||1)*-1;
     const dir=G.direction===1?'正回転':'逆回転';
     log(`🌀 高速回転！ターン順が${dir}に！`,'highlight');
     playSound('kousoku');
-    act=null;G.act=null;
-    nextTurn();syncToServer();render();
   } else if(id==='donguri'){
     act.phase='awaitDonguri';
     G.act=act;
@@ -2153,9 +2214,12 @@ function showCoinFlip(heads){
     (heads
       ? '山札または捨て場の裏タイルを1枚選んで表にできる。'
       : '自分の表タイルがランダムで1枚裏返される…');
-  document.getElementById('ecButtons').innerHTML = heads
-    ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="executeIkkaHeads()">✦ さらに2回行動する</button>`
-    : `<button class="ec-use-btn" style="border-color:#ff6060;color:#ff6060;background:#ff606018;" onclick="executeIkkaTails()">✦ 運命を受け入れる</button>`;
+  const isMyTurnNow=!myName||G.players[G.currentPlayer].name===myName;
+  document.getElementById('ecButtons').innerHTML = isMyTurnNow
+    ? (heads
+        ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="executeIkkaHeads()">✦ さらに2回行動する</button>`
+        : `<button class="ec-use-btn" style="border-color:#ff6060;color:#ff6060;background:#ff606018;" onclick="executeIkkaTails()">✦ 運命を受け入れる</button>`)
+    : `<div style="font-size:0.65rem;color:#555;letter-spacing:1px;text-align:center;">結果を待っています…</div>`;
   inner.classList.remove('reveal');
   void inner.offsetWidth;
   inner.classList.add('reveal');
@@ -2165,13 +2229,11 @@ function showCoinFlip(heads){
 // 表: 2ターン追加（連番含めると計3回行動）
 function executeIkkaHeads(){
   closeEffectCardModal();
-  const cp=G.currentPlayer;
   log(`👑 表！${G.players[G.currentPlayer].name} がさらに2回行動できる！`,'highlight');
-  // afterEffectCardUsedを2回分積む: usedFirstをfalseにしてダブルボーナス扱いで1ターン追加、
-  // その後さらにもう1ターンのためにact.ikkaExtraを使う
+  // act.ikkaExtra2=trueでafterEffectCardUsedを2回分使う
   if(act){
-    act.ikkaExtra=true; // 2ターン追加フラグ
-    act.usedFirst=false; // afterEffectCardUsedで1ターン目を処理
+    act.ikkaExtra=true;
+    act.ikkaExtra2=true;
   }
   afterEffectCardUsed();
 }
@@ -2252,18 +2314,17 @@ function executeDonguri(targetPi, targetHi){
     playSound('error');return;
   }
   const flipped=defender.hand[targetHi].tile;
-  // syncのためにフラグをactに乗せる
+  // 先に手札を変更
+  defender.hand[targetHi]={tile:flipped,revealed:false};
+  // syncで状態を全員に配信（手札変更済み）
   act.donguriTarget={pi:targetPi,hi:targetHi,num:flipped.num};
   G.act=act;
-  syncToServer(); // 全員に裏返し対象を先に配信
-  // アニメ用フラグ
+  syncToServer();
+  // アニメ
   donguriAnim={pi:targetPi,hi:targetHi};
   playSound('donguri');
   log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
-  // 裏返す
-  defender.hand[targetHi]={tile:flipped,revealed:false};
-  render(); // アニメ表示
-  // アニメ完了後に次へ
+  render();
   setTimeout(()=>{
     act=null;G.act=null;
     afterEffectCardUsed();syncToServer();render();
@@ -2297,7 +2358,7 @@ function executeLadyFirst(targetName){
 // sync受信時: 効果カードモーダルを全員に表示
 function checkEffectCardSync(){
   if(!G||!G.act)return;
-  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool','awaitCoinFlip'];
+  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool','awaitCoinFlip','awaitRoulette'];
   // モーダルが選択アニメ中(closing)なら何もしない
   if(document.getElementById('effectCardModal').classList.contains('closing')) return;
   // awaitDonguri: 対象確定後、観戦者もアニメ
@@ -2355,9 +2416,16 @@ function checkEffectCardSync(){
   } else if(G.act.phase==='awaitCoinFlip'&&G.act.coinResult){
     const isMe = !myName||G.players[G.currentPlayer].name===myName;
     if(!isMe){
-      // 観戦者にコインフリップ表示
       const modal=document.getElementById('effectCardModal');
       if(!modal.classList.contains('show')) showCoinFlip(G.act.coinResult==='heads');
+    }
+  } else if(G.act.phase==='awaitRoulette'&&G.act.rouletteFinal!=null){
+    const isMe = !myName||G.players[G.currentPlayer].name===myName;
+    if(!isMe){
+      const rModal=document.getElementById('rouletteModal');
+      if(!rModal.classList.contains('show')){
+        runRouletteAnim(G.act.rouletteCP, G.act.rouletteFinal, ()=>{});
+      }
     }
   } else if(!effectPhases.includes(G.act.phase)){
     const _modal=document.getElementById('effectCardModal');
@@ -2762,9 +2830,21 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'beta 2.0.5';
+const CURRENT_VERSION = 'beta 2.0.6';
 
 const CHANGELOG = [
+  {
+    version: 'beta 2.0.6',
+    date: '2026-02-27',
+    items: [
+      { text: '一か八か: コインフリップが全員に表示されるよう修正', highlight: true },
+      { text: '一か八か: 観戦者がボタンをクリックできるバグ修正', highlight: true },
+      { text: '一か八か: 表で2回行動できるよう修正', highlight: true },
+      { text: 'どんぐりころころ: カードが裏返らないバグ修正', highlight: true },
+      { text: 'お前のものは俺の物: スロット式ルーレットに変更・全員表示・SE静かに', highlight: true },
+      { text: '高速回転: 余計なターン終了が入るバグ修正', highlight: true },
+    ]
+  },
   {
     version: 'beta 2.0.5',
     date: '2026-02-27',
