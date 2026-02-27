@@ -302,11 +302,17 @@
 </div>
 
 <header>
-  <div class="logo">NUMER<span>ETTO</span></div>
+  <div class="logo">NUML<span>ETTO</span></div>
   <div class="status-bar">
     <span id="hdrTurn" class="turn-indicator">SETUP</span>
     <span id="hdrRound">—</span>
     <span id="hdrPool">POOL: —</span>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.6rem;color:var(--muted);cursor:pointer;">
+      <span id="volIcon" style="font-size:0.85rem;">🔊</span>
+      <input type="range" id="volSlider" min="0" max="1" step="0.05" value="0.7"
+        oninput="setVolume(this.value)"
+        style="width:64px;accent-color:var(--accent);cursor:pointer;">
+    </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
   </div>
 </header>
@@ -531,6 +537,97 @@ function syncToServer(type='action'){
 }
 
 // ════════════════════════════════════════════
+//  SOUND ENGINE (Web Audio API)
+// ════════════════════════════════════════════
+const AC = (()=>{try{return new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}})();
+let masterVolume = 0.7;
+
+function setVolume(v){
+  masterVolume = parseFloat(v);
+  const icon = document.getElementById('volIcon');
+  if(icon) icon.textContent = masterVolume === 0 ? '🔇' : masterVolume < 0.4 ? '🔉' : '🔊';
+}
+
+function playSound(type){
+  if(!AC) return;
+  // iOS等でコンテキストが停止している場合に再開
+  if(AC.state==='suspended') AC.resume();
+  const t = AC.currentTime;
+
+  const sounds = {
+    draw: ()=>{
+      // カードをめくる音: ノイズバースト + 短いピッチ上昇
+      const buf = AC.createBuffer(1, AC.sampleRate*0.08, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+      const src = AC.createBufferSource();
+      src.buffer = buf;
+      const g = AC.createGain(); g.gain.setValueAtTime(0.18*masterVolume,t);
+      src.connect(g); g.connect(AC.destination); src.start(t);
+      // 高めのピッチ
+      const osc = AC.createOscillator();
+      const og = AC.createGain();
+      osc.type='sine'; osc.frequency.setValueAtTime(800,t); osc.frequency.linearRampToValueAtTime(1200,t+0.06);
+      og.gain.setValueAtTime(0.12*masterVolume,t); og.gain.linearRampToValueAtTime(0,t+0.08);
+      osc.connect(og); og.connect(AC.destination); osc.start(t); osc.stop(t+0.08);
+    },
+    place: ()=>{
+      // タイルを置く音: コツッという打撃音
+      const osc = AC.createOscillator();
+      const g = AC.createGain();
+      osc.type='triangle'; osc.frequency.setValueAtTime(300,t); osc.frequency.exponentialRampToValueAtTime(80,t+0.12);
+      g.gain.setValueAtTime(0.25*masterVolume,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+      osc.connect(g); g.connect(AC.destination); osc.start(t); osc.stop(t+0.13);
+    },
+    bonus: ()=>{
+      // 連番ボーナス: 上昇アルペジオ
+      [523,659,784,1047].forEach((freq,i)=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sine'; osc.frequency.value=freq;
+        const st=t+i*0.08;
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.18,st+0.02);
+        g.gain.linearRampToValueAtTime(0,st+0.1);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.12);
+      });
+    },
+    discard: ()=>{
+      // 捨てる: 低めのシュッという音
+      const buf = AC.createBuffer(1, AC.sampleRate*0.1, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.5)*0.5;
+      const src=AC.createBufferSource(); src.buffer=buf;
+      const g=AC.createGain(); g.gain.setValueAtTime(0.12*masterVolume,t);
+      const filt=AC.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=600;
+      src.connect(filt); filt.connect(g); g.connect(AC.destination); src.start(t);
+    },
+    error: ()=>{
+      // エラー: 低いブザー2回
+      [0,0.12].forEach(delay=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sawtooth'; osc.frequency.value=120;
+        const st=t+delay;
+        g.gain.setValueAtTime(0.15*masterVolume,st); g.gain.linearRampToValueAtTime(0,st+0.08);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.09);
+      });
+    },
+    win: ()=>{
+      // 勝利: ファンファーレ
+      const melody=[523,523,523,659,523,659,784];
+      const times=[0,0.18,0.36,0.54,0.72,0.82,0.92];
+      melody.forEach((freq,i)=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='square'; osc.frequency.value=freq;
+        const st=t+times[i];
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.15,st+0.02);
+        g.gain.linearRampToValueAtTime(0,st+0.15);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.16);
+      });
+    },
+  };
+  if(sounds[type]) sounds[type]();
+}
+
+// ════════════════════════════════════════════
 //  CONSTANTS & GLOBALS
 // ════════════════════════════════════════════
 // 人数別配布枚数
@@ -665,6 +762,7 @@ function renderSetup(){
 function insertRevealTile(gapIdx){
   const sp=setupPhase;
   if(!sp||!sp.selectedInHand)return;
+  if(myName && G.players[sp.playerIdx].name !== myName)return;
   const player=G.players[sp.playerIdx];
   const rawTile=player.revealTiles[sp.currentRevealIdx];
   const useRevSetup=sp.useRev===true&&rawTile.rev!=null;
@@ -910,6 +1008,8 @@ function flipDrawnTile(){
 // ⓪ パス（ターンをスキップ）
 function passAction(){
   if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  playSound('discard');
   log(`${G.players[G.currentPlayer].name}: パスした。`);
   nextTurn();syncToServer();render();
 }
@@ -917,6 +1017,7 @@ function passAction(){
 // ① 山札タイルをクリック → めくりアニメ → awaitSwap
 function flipPoolTile(poolIdx, el){
   if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
   // アニメーション
   el.classList.add('flipping');
   // めくった時点でキャンセル不可のフラグ
@@ -926,6 +1027,7 @@ function flipPoolTile(poolIdx, el){
     act={phase:'awaitSwap',drawnTile:tile,playerIdx:G.currentPlayer,fromDiscard:false,tileFlipped:true};
     // clear all isNew flags in discard
     G.discard.forEach(e=>e.isNew=false);
+    playSound('draw');
     log(`${G.players[G.currentPlayer].name} が山札から [${tile.num}${tile.rev?'/'+tile.rev:''}] をめくった！`,'highlight');
     syncToServer();
     render();
@@ -935,10 +1037,12 @@ function flipPoolTile(poolIdx, el){
 // ② 捨て場から取得（裏向きタイルをめくって手に入れる）
 function takeDiscard(di){
   if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
   const entry=G.discard.splice(di,1)[0];
   G.discard.forEach(e=>e.isNew=false);
   // tile is now revealed to current player
   act={phase:'awaitSwap',drawnTile:entry.tile,playerIdx:G.currentPlayer,fromDiscard:true,tileFlipped:true};
+  playSound('draw');
   log(`${G.players[G.currentPlayer].name} が捨て場から（${entry.discardedBy} の捨てたタイル）[${entry.tile.num}] を取った！`,'highlight');
   syncToServer();
   render();
@@ -947,6 +1051,7 @@ function takeDiscard(di){
 // ③ 手札の裏タイルクリック
 function clickHandTile(pi,hi){
   if(!G||!act||setupPhase||pi!==G.currentPlayer)return;
+  if(myName && G.players[pi].name !== myName)return;
   const player=G.players[G.currentPlayer];
 
   if(act.phase==='awaitSwap'){
@@ -964,19 +1069,20 @@ function clickHandTile(pi,hi){
       // 逆さ向きも試す
       const altNum=act.useRev?drawn:rev;
       if(altNum&&canFit(player.hand,hi,altNum)){useNum=altNum;}
-      else{log(`[${useNum}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error');flashTile(pi,hi);return;}
+      else{playSound('error');log(`[${useNum}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error');flashTile(pi,hi);return;}
     }
     const removed=player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
     // 交換で出た裏タイルは裏向きで捨て場へ
     G.discard.forEach(e=>e.isNew=false);
+    playSound('discard');
     G.discard.push({tile:removed.tile,discardedBy:player.name,faceUp:false,isNew:true});
     const bonus=isConsecutive(player.hand,hi);
     log(`${player.name}: [${useNum}] を配置。`,bonus?'highlight':'');
     act=null;player.turns++;
     checkWin(G.currentPlayer);
     if(!G.gameOver){
-      if(bonus){log(`🎉 連番！${player.name} がもう1回！`,'highlight');}
-      else{nextTurn();}
+      if(bonus){playSound('bonus');log(`🎉 連番！${player.name} がもう1回！`,'highlight');}
+      else{playSound('place');nextTurn();}
     }
     syncToServer();
     render();
@@ -990,15 +1096,18 @@ function clickHandTile(pi,hi){
 
 function cannotPlace(){
   if(!act||act.phase!=='awaitSwap')return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
   G.discard.forEach(e=>e.isNew=false);
   // 置けなかったタイルは表向きで捨て場へ（全員に数字が分かる）
   G.discard.push({tile:act.drawnTile,discardedBy:G.players[G.currentPlayer].name,faceUp:true,isNew:true});
+  playSound('discard');
   log(`${G.players[G.currentPlayer].name}: [${act.drawnTile.num}] は置けず → 表向きで捨て場へ。`,'error');
   act=null;nextTurn();syncToServer();render();
 }
 
 function startMoveBlind(){
   if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
   const cp=G.currentPlayer;
   const blindCount=G.players[cp].hand.filter(h=>!h.revealed).length;
   if(blindCount<1){log('移動できる裏タイルがありません。','error');return;}
@@ -1079,6 +1188,7 @@ function checkWin(pi){
   if(!pl.hand.every(h=>h.revealed))return;
   for(let i=1;i<pl.hand.length;i++)if(pl.hand[i].tile.num<=pl.hand[i-1].tile.num)return;
   G.gameOver=true;G.winner=pi;
+  playSound('win');
   log(`🏆 ${pl.name} が全タイルを昇順に！COMPLETE！`,'highlight');
   showWin(pi);
 }
