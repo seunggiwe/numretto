@@ -412,7 +412,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">v0.0.0</span>
+      <span class="version-badge" onclick="openChangelog()">beta 0.0.0</span>
     </div>
   </div>
 </div>
@@ -468,7 +468,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">v0.0.0</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 0.0.0</span>
   </div>
 </header>
 
@@ -791,20 +791,21 @@ function playSound(type){
 
   const sounds = {
     draw: ()=>{
-      // カードをめくる音: ノイズバースト + 短いピッチ上昇
-      const buf = AC.createBuffer(1, AC.sampleRate*0.08, AC.sampleRate);
+      // カードをめくる音: 柔らかいウッドブロック風
+      // ローパスフィルタ済みノイズ（紙をめくる感触）
+      const buf = AC.createBuffer(1, AC.sampleRate*0.12, AC.sampleRate);
       const d = buf.getChannelData(0);
-      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
-      const src = AC.createBufferSource();
-      src.buffer = buf;
-      const g = AC.createGain(); g.gain.setValueAtTime(0.18*masterVolume,t);
-      src.connect(g); g.connect(AC.destination); src.start(t);
-      // 高めのピッチ
-      const osc = AC.createOscillator();
-      const og = AC.createGain();
-      osc.type='sine'; osc.frequency.setValueAtTime(800,t); osc.frequency.linearRampToValueAtTime(1200,t+0.06);
-      og.gain.setValueAtTime(0.12*masterVolume,t); og.gain.linearRampToValueAtTime(0,t+0.08);
-      osc.connect(og); og.connect(AC.destination); osc.start(t); osc.stop(t+0.08);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.6;
+      const src = AC.createBufferSource(); src.buffer=buf;
+      const filt = AC.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=1200;
+      const g = AC.createGain(); g.gain.setValueAtTime(0.15*masterVolume,t); g.gain.linearRampToValueAtTime(0,t+0.12);
+      src.connect(filt); filt.connect(g); g.connect(AC.destination); src.start(t);
+      // 柔らかい低めのトーン（300Hz台、三角波でまろやか）
+      const osc = AC.createOscillator(); const og = AC.createGain();
+      osc.type='triangle'; osc.frequency.setValueAtTime(380,t); osc.frequency.linearRampToValueAtTime(320,t+0.14);
+      og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(0.1*masterVolume,t+0.02);
+      og.gain.linearRampToValueAtTime(0,t+0.16);
+      osc.connect(og); og.connect(AC.destination); osc.start(t); osc.stop(t+0.17);
     },
     place: ()=>{
       // タイルを置く音: コツッという打撃音
@@ -1369,10 +1370,10 @@ function clickHandTile(pi,hi){
     const bonus=isConsecutive(player.hand,hi);
     log(`${player.name}: [${useNum}] を配置。`,bonus?'highlight':'');
     act=null;G.act=null;player.turns++;
-    // 達成進捗を記録（[ターン数, 達成枚数]）
+    // 達成進捗を記録（[ラウンド数, 達成枚数]）X軸=全員共通のラウンド
     const revealedNow=player.hand.filter(h=>h.revealed).length;
     if(!player.progressHistory) player.progressHistory=[[0,0]];
-    player.progressHistory.push([player.turns, revealedNow]);
+    player.progressHistory.push([G.round, revealedNow]);
     checkWin(G.currentPlayer);
     if(!G.gameOver){
       if(bonus){
@@ -1516,43 +1517,61 @@ function openResult(){
   const myVote = r.votes[myName] || null;
 
   // ── グラフ描画 ──
-  const W=460, H=200, PAD={top:20,right:20,bottom:36,left:36};
+  const W=460, H=220, PAD={top:20,right:24,bottom:38,left:40};
   const gw=W-PAD.left-PAD.right, gh=H-PAD.top-PAD.bottom;
-  const maxTurns = Math.max(...r.players.map(p=>p.turns), 1);
-  const maxRevealed = Math.max(...r.players.map(p=>p.handSize), 1);
+  const handSize = r.players[0].handSize;
+  // X軸: 全員のhistoryから最大ラウンドを取得
+  const maxRound = Math.max(...r.players.flatMap(p=>p.progressHistory.map(pt=>pt[0])), 1);
   const colors = ['#e8d44d','#e05c4b','#5ab4e0','#7de87a','#e0a05c','#c05ae0'];
 
-  const toX = t => PAD.left + (t/maxTurns)*gw;
-  const toY = v => PAD.top + gh - (v/maxRevealed)*gh;
+  const toX = round => PAD.left + (round/maxRound)*gw;
+  const toY = v => PAD.top + gh - (v/handSize)*gh;
 
-  // 軸
-  let svgLines = `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top+gh}" stroke="#333" stroke-width="1"/>`;
-  svgLines += `<line x1="${PAD.left}" y1="${PAD.top+gh}" x2="${PAD.left+gw}" y2="${PAD.top+gh}" stroke="#333" stroke-width="1"/>`;
-  // Y軸グリッド
+  // 軸線
+  let svgLines = '';
+  svgLines += `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top+gh}" stroke="#2a2a2a" stroke-width="1"/>`;
+  svgLines += `<line x1="${PAD.left}" y1="${PAD.top+gh}" x2="${PAD.left+gw}" y2="${PAD.top+gh}" stroke="#2a2a2a" stroke-width="1"/>`;
+
+  // Y軸グリッド（25%刻み）
   [0,0.25,0.5,0.75,1].forEach(f=>{
-    const y=toY(f*maxRevealed);
-    svgLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+gw}" y2="${y}" stroke="#222" stroke-width="1" stroke-dasharray="3,3"/>`;
-    svgLines += `<text x="${PAD.left-4}" y="${y+4}" text-anchor="end" fill="#444" font-size="9">${Math.round(f*maxRevealed)}</text>`;
+    const yv = Math.round(f*handSize);
+    const y = toY(yv);
+    svgLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+gw}" y2="${y}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="4,4"/>`;
+    svgLines += `<text x="${PAD.left-6}" y="${y+4}" text-anchor="end" fill="#3a3a3a" font-size="9">${yv}</text>`;
   });
-  // X軸ラベル
-  svgLines += `<text x="${PAD.left}" y="${H-4}" fill="#444" font-size="9">0</text>`;
-  svgLines += `<text x="${PAD.left+gw}" y="${H-4}" text-anchor="end" fill="#444" font-size="9">${maxTurns}</text>`;
-  svgLines += `<text x="${W/2}" y="${H}" text-anchor="middle" fill="#444" font-size="9">TURNS</text>`;
-  svgLines += `<text x="8" y="${H/2}" text-anchor="middle" fill="#444" font-size="9" transform="rotate(-90,8,${H/2})">REVEALED</text>`;
+
+  // X軸グリッド（ラベル最大5本）
+  const xStep = Math.ceil(maxRound/5);
+  for(let r2=0; r2<=maxRound; r2+=xStep){
+    const x=toX(r2);
+    svgLines += `<line x1="${x}" y1="${PAD.top}" x2="${x}" y2="${PAD.top+gh}" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="4,4"/>`;
+    svgLines += `<text x="${x}" y="${PAD.top+gh+13}" text-anchor="middle" fill="#3a3a3a" font-size="9">${r2}</text>`;
+  }
+
+  // 軸ラベル
+  svgLines += `<text x="${W/2}" y="${H-2}" text-anchor="middle" fill="#444" font-size="9" letter-spacing="1">ROUND</text>`;
+  svgLines += `<text x="10" y="${H/2}" text-anchor="middle" fill="#444" font-size="9" transform="rotate(-90,10,${H/2})">REVEALED</text>`;
 
   // 各プレイヤーの折れ線
+  // historyをラウンドベースでソートし、同ラウンドは最大値を使う
   let svgPaths = '';
   r.players.forEach((p,i)=>{
-    const hist = p.progressHistory.length>1 ? p.progressHistory : [[0,0],[p.turns,p.revealed]];
-    const pts = hist.map(([t,v])=>`${toX(t)},${toY(v)}`).join(' ');
     const col = colors[i%colors.length];
-    svgPaths += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
-    // 終点ドット
-    const last = hist[hist.length-1];
-    svgPaths += `<circle cx="${toX(last[0])}" cy="${toY(last[1])}" r="4" fill="${col}"/>`;
-    // 勝者は星マーク
+    // progressHistoryをラウンドでソート、[0,0]は確実に含む
+    const hist = [...p.progressHistory].sort((a,b)=>a[0]-b[0]);
+    // 折れ線: 各点を順番に結ぶ（段差が見えてプレイヤーの動きがわかる）
+    const pts = hist.map(([rn,v])=>`${toX(rn).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+    svgPaths += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    // 各記録点に小ドット
+    hist.forEach(([rn,v],di)=>{
+      const cx=toX(rn), cy=toY(v);
+      const isLast = di===hist.length-1;
+      svgPaths += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${isLast?5:2.5}" fill="${col}" opacity="${isLast?1:0.6}"/>`;
+    });
+    // 勝者に★
     if(i===r.winnerIdx){
-      svgPaths += `<text x="${toX(last[0])+6}" y="${toY(last[1])-4}" fill="${col}" font-size="10">★</text>`;
+      const last=hist[hist.length-1];
+      svgPaths += `<text x="${(toX(last[0])+7).toFixed(1)}" y="${(toY(last[1])-4).toFixed(1)}" fill="${col}" font-size="11" font-weight="bold">★</text>`;
     }
   });
 
@@ -1561,7 +1580,7 @@ function openResult(){
     <div style="display:flex;align-items:center;gap:6px;font-size:0.62rem;color:#aaa;">
       <span style="width:14px;height:3px;background:${colors[i%colors.length]};border-radius:2px;display:inline-block;flex-shrink:0;"></span>
       <span style="${i===r.winnerIdx?'color:#e8d44d;font-weight:700;':''}">${p.name}${i===r.winnerIdx?' ★':''}</span>
-      <span style="color:#555;margin-left:auto;">${p.turns}T · ${p.revealed}/${p.handSize}</span>
+      <span style="color:#555;margin-left:auto;">${p.turns}手 · ${p.revealed}/${p.handSize}枚</span>
     </div>`).join('');
 
   // 投票状況
@@ -1598,29 +1617,37 @@ function openResult(){
     </div>
   `;
 
+  const wasHidden = document.getElementById('resultOverlay').classList.contains('hidden');
   document.getElementById('resultOverlay').classList.remove('hidden');
-  // 勝利パーティクル
-  setTimeout(()=>spawnParticles(window.innerWidth/2, window.innerHeight/3, 40),300);
-  setTimeout(()=>spawnParticles(window.innerWidth/3, window.innerHeight/2, 25),600);
-  setTimeout(()=>spawnParticles(window.innerWidth*2/3, window.innerHeight/2, 25),800);
+  // 勝利パーティクルは初回表示時のみ
+  if(wasHidden){
+    setTimeout(()=>spawnParticles(window.innerWidth/2, window.innerHeight/3, 40),300);
+    setTimeout(()=>spawnParticles(window.innerWidth/3, window.innerHeight/2, 25),600);
+    setTimeout(()=>spawnParticles(window.innerWidth*2/3, window.innerHeight/2, 25),800);
+  }
+  // 全員投票済みか確認（sync受信時にも判定させる）
+  checkVotes();
 }
 
 function voteResult(vote){
   if(!G||!G.result) return;
   G.result.votes[myName] = vote;
   syncToServer();
-  openResult(); // 投票状況を再描画
-  // 全員再戦ならホストが自動rematch
+  openResult();
+}
+
+// 投票集計：openResult末尾＆sync受信時に呼ばれる
+function checkVotes(){
+  if(!G||!G.result) return;
   const r = G.result;
   const allVoted = r.players.every(p=>r.votes[p.name]);
+  if(!allVoted) return;
   const allRematch = r.players.every(p=>r.votes[p.name]==='rematch');
-  if(allVoted && allRematch && amIHost){
-    setTimeout(()=>rematch(), 600);
-  } else if(allVoted && !allRematch){
-    // 退出者がいる場合はロビーへ
-    if(r.votes[myName]==='leave'){
-      setTimeout(()=>{ location.reload(); }, 600);
-    }
+  if(allRematch){
+    if(amIHost) setTimeout(()=>rematch(), 500);
+  } else {
+    // 退出票あり → 自分が退出を選んでいたらリロード
+    if(r.votes[myName]==='leave') setTimeout(()=>location.reload(), 600);
   }
 }
 
@@ -1714,11 +1741,21 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'v1.8.0';
+const CURRENT_VERSION = 'beta 1.8.1';
 
 const CHANGELOG = [
   {
-    version: 'v1.8.0',
+    version: 'beta 1.8.1',
+    date: '2026-02-27',
+    items: [
+      { text: 'ドローSEを柔らかい音に変更', highlight: true },
+      { text: 'リザルトグラフ修正: X軸をラウンド共通軸に、各点を記録', highlight: true },
+      { text: '全員再戦投票しても次ゲームに進まないバグを修正', highlight: true },
+      { text: 'バージョン表記を beta X.X.X 形式に変更' },
+    ]
+  },
+  {
+    version: 'beta 1.8.0',
     date: '2026-02-27',
     items: [
       { text: 'リザルト画面：進捗グラフ・全員投票システム', highlight: true },
@@ -1727,7 +1764,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.7.0',
+    version: 'beta 1.7.0',
     date: '2026-02-27',
     items: [
       { text: 'タイル差し込み・交換アニメーション追加', highlight: true },
@@ -1737,7 +1774,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.6.0',
+    version: 'beta 1.6.0',
     date: '2026-02-26',
     items: [
       { text: '置ける位置をグリーンでハイライト表示', highlight: true },
@@ -1748,7 +1785,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.5.0',
+    version: 'beta 1.5.0',
     date: '2026-02-26',
     items: [
       { text: '他プレイヤーの操作SEを全員に配信', highlight: true },
@@ -1759,7 +1796,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.4.0',
+    version: 'beta 1.4.0',
     date: '2026-02-25',
     items: [
       { text: '準備フェーズを全員同時進行に変更', highlight: true },
@@ -1769,7 +1806,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.3.0',
+    version: 'beta 1.3.0',
     date: '2026-02-25',
     items: [
       { text: 'WebAudio SEエンジン追加（外部ファイル不要）', highlight: true },
@@ -1778,7 +1815,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.2.0',
+    version: 'beta 1.2.0',
     date: '2026-02-24',
     items: [
       { text: 'G.actをサーバー経由で同期（めくり状態が全員に見える）', highlight: true },
@@ -1786,7 +1823,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.1.0',
+    version: 'beta 1.1.0',
     date: '2026-02-24',
     items: [
       { text: 'オンライン専用マルチプレイヤー化（PartyKit）', highlight: true },
@@ -1796,7 +1833,7 @@ const CHANGELOG = [
     ]
   },
   {
-    version: 'v1.0.0',
+    version: 'beta 1.0.0',
     date: '2026-02-23',
     items: [
       { text: 'ローカルホットシート版リリース', highlight: true },
