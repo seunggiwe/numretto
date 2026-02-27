@@ -442,6 +442,7 @@ let currentRoomId = '';
 let intentionalClose = false; // 意図的切断フラグ
 let reconnectTimer = null;
 let heartbeatTimer = null;
+let reconnectAttempt = 0; // バックオフ用カウンタ
 
 // 「接続する」ボタン
 function connectAction(){
@@ -480,13 +481,14 @@ function connectToRoom(roomId) {
   ws = new WebSocket(`${PARTYKIT_URL}/party/${roomId}`);
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'join', name: myName }));
-    // Heartbeat: 25秒ごとにpingを送ってアイドル切断を防ぐ
+    const isReconnect = !!G;
+    ws.send(JSON.stringify({ type: 'join', name: myName, reconnect: isReconnect }));
+    // Heartbeat: 5秒ごとにpingでアイドル切断防止
     heartbeatTimer = setInterval(()=>{
       if(ws && ws.readyState === WebSocket.OPEN){
         ws.send(JSON.stringify({ type: 'ping' }));
       }
-    }, 25000);
+    }, 5000);
   };
 
   ws.onmessage = (e) => {
@@ -494,11 +496,21 @@ function connectToRoom(roomId) {
 
     // 待合室情報
     if(msg.type === 'lobby'){
-      showLobby(msg.players, roomId);
+      // ゲーム中に再接続してlobbyが返ってきた場合はresyncを要求
+      if(G && !msg.hasGame){
+        // サーバー側のGがリセットされてしまった稀なケース → 画面を待合室に戻す
+        showLobby(msg.players, roomId);
+      } else if(G && msg.hasGame){
+        // ゲーム継続中 → サーバーにresync要求
+        ws.send(JSON.stringify({ type: 'resync' }));
+      } else {
+        showLobby(msg.players, roomId);
+      }
     }
 
     // ゲーム開始 / アクション同期
     if(msg.type === 'sync'){
+      if(ws) ws._attempt = 0; reconnectAttempt = 0; // 再接続成功でバックオフリセット
       const prevAct = act;
       const prevPlayer = G ? G.currentPlayer : -1;
       G = msg.G;
@@ -543,24 +555,32 @@ function connectToRoom(roomId) {
   };
 
   ws.onerror = () => {
-    const errEl = document.getElementById('connectError');
-    if(errEl) errEl.textContent = '接続に失敗しました。通信環境を確認してください。';
-    document.getElementById('btnConnect').disabled = false;
-    document.getElementById('btnConnect').textContent = 'ENTER ROOM';
-    document.getElementById('titleOverlay').classList.remove('hidden');
-    document.getElementById('lobbyOverlay').classList.add('hidden');
+    // onerrorは常にoncloseの直前に発火するので、ここでは何もしない
+    // 処理はoncloseに一元化する
   };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
-    if(intentionalClose) return; // leaveLobby等の意図的切断は無視
-    // ゲーム中または待合室中なら自動再接続
-    if(myName && currentRoomId){
-      log('接続が切れました。再接続中…','error');
-      reconnectTimer = setTimeout(()=>{
-        connectToRoom(currentRoomId);
-      }, 3000);
+    if(intentionalClose){ intentionalClose=false; return; }
+
+    if(!myName || !currentRoomId){
+      // 接続前のエラー（合言葉入力画面）
+      const errEl = document.getElementById('connectError');
+      if(errEl) errEl.textContent = '接続に失敗しました。通信環境を確認してください。';
+      document.getElementById('btnConnect').disabled = false;
+      document.getElementById('btnConnect').textContent = 'ENTER ROOM';
+      return;
     }
+
+    // ゲーム中/待合室中 → 自動再接続（バックオフ付き）
+    reconnectAttempt++;
+    let delay = reconnectAttempt > 3 ? 8000 : reconnectAttempt > 1 ? 4000 : 2000;
+
+    log(`接続が切れました。${delay/1000}秒後に再接続… (${reconnectAttempt}回目)`, 'error');
+    reconnectTimer = setTimeout(()=>{
+      connectToRoom(currentRoomId);
+    }, delay);
   };
+  return ws;
 }
 
 function showLobby(players, roomId){
