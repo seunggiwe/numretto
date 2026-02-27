@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMLETTO — 数字並べ対戦ゲーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0d0d; --surface:#161616; --panel:#1e1e1e; --border:#2a2a2a;
+    --accent:#e8d44d; --accent2:#e05c4b; --text:#e8e8e8; --muted:#555;
+    --face-down:#1a2a3a; --face-down-border:#2a4a6a;
+    --revealed:#f5f0e8; --revealed-text:#0d0d0d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Roboto Mono',monospace;min-height:100vh;display:flex;flex-direction:column;}
+
+  /* ── HEADER ── */
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
+  .logo{font-family:'Bebas Neue',cursive;font-size:1.8rem;letter-spacing:4px;color:var(--accent);}
+  .logo span{color:var(--accent2);}
+  .status-bar{display:flex;gap:16px;align-items:center;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+  .turn-indicator{background:var(--accent);color:#000;padding:3px 10px;border-radius:2px;font-weight:600;font-size:0.7rem;}
+
+  .game-wrap{display:flex;flex-direction:column;flex:1;}
+
+  /* ── PLAYER ZONES ── */
+  .player-zone{padding:14px 24px 12px;border-bottom:1px solid var(--border);transition:background 0.3s;}
+  .player-zone.active-player{background:linear-gradient(90deg,rgba(232,212,77,0.06) 0%,transparent 70%);border-left:3px solid var(--accent);}
+  .player-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+  .player-name{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--muted);}
+  .active-player .player-name{color:var(--accent);}
+  .player-progress{font-size:0.62rem;color:var(--muted);}
+  .progress-bar-wrap{height:3px;background:var(--border);border-radius:2px;width:100px;overflow:hidden;}
+  .progress-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.4s;}
+  .badge{display:inline-block;font-size:0.58rem;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:1px;}
+  .badge-yellow{background:var(--accent);color:#000;}
+  .badge-red{background:var(--accent2);color:#fff;}
+  .badge-muted{border:1px solid var(--border);color:var(--muted);}
+
+  .tile-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+
+  /* ── TILES ── */
+  .tile{
+    width:48px;height:60px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:1rem;cursor:default;
+    transition:transform 0.12s,box-shadow 0.12s,border-color 0.1s;
+    user-select:none;border:2px solid transparent;letter-spacing:-0.5px;
+    position:relative;
+  }
+  .tile.face-down{
+    background:var(--face-down);border-color:var(--face-down-border);color:transparent;
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.02) 4px,rgba(255,255,255,0.02) 5px);
+  }
+  .tile.face-up{background:var(--revealed);border-color:#c8c0a8;color:var(--revealed-text);box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+  .tile.selectable{cursor:pointer;border-color:#3a6a9a !important;}
+  .tile.selectable:hover{transform:translateY(-4px);box-shadow:0 6px 16px rgba(58,106,154,0.4);border-color:#5a9aca !important;}
+  .tile.selected{border-color:var(--accent) !important;box-shadow:0 0 0 3px rgba(232,212,77,0.4) !important;transform:translateY(-6px) !important;}
+  .tile.invalid-flash{animation:flash-red 0.4s ease;}
+  @keyframes flash-red{0%,100%{border-color:var(--accent2);}50%{background:rgba(224,92,75,0.15);}}
+
+  /* 逆さま表示 */
+  .tile.flipped { transform: rotate(180deg) !important; }
+  .tile.flipped:hover { transform: rotate(180deg) translateY(-4px) !important; }
+  /* 置けない（グレーアウト）捨て場タイル */
+  .tile.unplaceable { opacity:0.35; cursor:not-allowed !important; filter:grayscale(0.5); }
+  .tile.unplaceable:hover { transform:none !important; box-shadow:none !important; border-color:#c8c0a8 !important; }
+  /* 手札エリア内アクションバー */
+  .player-action-bar { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .btn-sm { font-family:'Roboto Mono',monospace; font-size:0.65rem; letter-spacing:0.5px; text-transform:uppercase;
+    padding:5px 12px; border-radius:3px; border:1px solid var(--border); cursor:pointer;
+    transition:all 0.15s; background:transparent; color:var(--text); }
+  .btn-sm:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  .btn-sm:disabled { opacity:0.3; cursor:not-allowed; }
+  .btn-sm.accent { border-color:var(--accent2); color:var(--accent2); }
+  .btn-sm.accent:hover:not(:disabled) { background:rgba(224,92,75,0.1); }
+  /* ひっくり返すボタン（バナー内） */
+  .flip-btn { font-family:'Roboto Mono',monospace; font-size:0.65rem; letter-spacing:0.5px; text-transform:uppercase;
+    padding:5px 14px; border-radius:3px; border:1px solid rgba(232,212,77,0.4); cursor:pointer;
+    transition:all 0.15s; background:rgba(232,212,77,0.08); color:var(--accent); }
+  .flip-btn:hover { background:rgba(232,212,77,0.2); border-color:var(--accent); }
+
+  /* Setup orange tiles */
+  .tile.to-place{background:#241800;border-color:#7a4800;color:#e8b040;cursor:pointer;}
+  .tile.to-place:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 6px 16px rgba(232,180,40,0.35);}
+  .tile.to-place.src-selected{border-color:var(--accent) !important;box-shadow:0 0 0 3px rgba(232,212,77,0.5) !important;transform:translateY(-8px) !important;background:#342200;}
+
+  /* Gap slot */
+  .gap-slot{width:14px;height:60px;border-radius:4px;border:2px dashed transparent;cursor:default;display:flex;align-items:center;justify-content:center;transition:all 0.12s;flex-shrink:0;font-size:0.9rem;color:transparent;}
+  .gap-slot.droppable{border-color:transparent;background:transparent;cursor:pointer;color:var(--accent);}
+  .gap-slot.droppable:hover{color:#fff;transform:scale(1.3);}
+  /* 連番隣接スロット — 差し込み禁止 */
+  .gap-slot.blocked{
+    width:8px;cursor:not-allowed;
+    background:repeating-linear-gradient(45deg,rgba(224,92,75,0.12),rgba(224,92,75,0.12) 2px,transparent 2px,transparent 5px);
+    border-color:rgba(224,92,75,0.25);
+    color:transparent;
+  }
+
+  /* Setup panel */
+  .setup-panel{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);}
+  .setup-panel-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:8px;}
+  .reveal-hand{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* ══════════════════════════════════════
+     CENTER ZONE — Pool spread + Discard
+  ══════════════════════════════════════ */
+  .center-zone{
+    background:var(--panel);
+    border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    padding:16px 24px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+
+  /* Pool spread row */
+  .pool-section{}
+  .pool-label-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .center-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);}
+  .pool-count-badge{
+    font-size:0.6rem;color:var(--muted);border:1px solid var(--border);
+    padding:1px 7px;border-radius:10px;letter-spacing:1px;
+  }
+  .pool-grid{
+    display:flex;flex-wrap:wrap;gap:4px;
+    max-height:200px;overflow-y:auto;
+    padding:4px 0;
+  }
+  /* Pool tiles: face-down but clickable */
+  .tile.pool-tile{cursor:pointer;border-color:var(--face-down-border);}
+  .tile.pool-tile:hover{transform:translateY(-5px);box-shadow:0 8px 20px rgba(42,74,106,0.6);border-color:#4a8aba;}
+  /* Pool tile that has been selected (flipping) */
+  .tile.pool-tile.flipping{
+    animation:flipCard 0.35s ease forwards;
+    pointer-events:none;
+  }
+  @keyframes flipCard{
+    0%  {transform:rotateY(0deg)   translateY(0);}
+    50% {transform:rotateY(90deg)  translateY(-8px);}
+    100%{transform:rotateY(0deg)   translateY(-8px);border-color:var(--accent);box-shadow:0 0 16px rgba(232,212,77,0.5);}
+  }
+
+  /* ── DRAWN CARD BANNER ── */
+  .drawn-banner{
+    display:flex;align-items:center;gap:16px;
+    background:rgba(232,212,77,0.07);
+    border:1px solid rgba(232,212,77,0.2);
+    border-radius:6px;
+    padding:10px 18px;
+    margin-bottom:4px;
+  }
+  .drawn-banner.hidden{display:none;}
+  .drawn-card-display{
+    width:56px;height:70px;border-radius:6px;
+    background:var(--revealed);border:2px solid var(--accent);
+    color:var(--revealed-text);
+    display:flex;align-items:center;justify-content:center;
+    font-size:1.4rem;font-weight:700;letter-spacing:-1px;
+    box-shadow:0 0 16px rgba(232,212,77,0.35);
+    flex-shrink:0;
+  }
+  .drawn-banner-text{display:flex;flex-direction:column;gap:4px;}
+  .drawn-banner-title{font-size:0.6rem;text-transform:uppercase;letter-spacing:2px;color:var(--accent);}
+  .drawn-banner-sub{font-size:0.72rem;color:var(--text);}
+  .drawn-banner-rev{font-size:0.62rem;color:var(--muted);}
+
+  /* ── DISCARD ZONE ── */
+  .discard-section{}
+  .discard-scroll{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow-y:auto;padding:2px 0;}
+  /* Discard tile with attribution */
+  .discard-entry{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
+  .discard-entry .tile{cursor:pointer;}
+  .discard-entry .tile:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 6px 16px rgba(232,212,77,0.3);}
+  .discard-who{font-size:0.52rem;color:var(--muted);letter-spacing:0.5px;max-width:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* NEW label on freshly discarded tile */
+  .discard-entry .new-dot{
+    position:absolute;top:-4px;right:-4px;
+    width:10px;height:10px;border-radius:50%;
+    background:var(--accent2);
+    border:2px solid var(--panel);
+    animation:blink 1s ease infinite;
+  }
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  /* ── ACTION PANEL ── */
+  .action-panel{padding:12px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface);min-height:54px;}
+  .action-label{font-size:0.62rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);min-width:70px;}
+  .btn{font-family:'Roboto Mono',monospace;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:3px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:transparent;color:var(--text);}
+  .btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
+  .btn.primary:hover:not(:disabled){background:#f0e060;}
+  .btn:disabled{opacity:0.3;cursor:not-allowed;}
+  .btn.danger{border-color:var(--accent2);color:var(--accent2);}
+  .btn.danger:hover:not(:disabled){background:rgba(224,92,75,0.1);}
+
+  .phase-hint{font-size:0.67rem;color:var(--accent);letter-spacing:0.4px;padding:8px 24px;background:rgba(232,212,77,0.04);border-bottom:1px solid rgba(232,212,77,0.07);min-height:32px;}
+
+  /* ── LOG (top-fixed, 4 lines) ── */
+  .log-wrap{
+    padding:6px 24px;
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    overflow:hidden;
+    flex-shrink:0;
+  }
+  .log-entry{font-size:0.63rem;color:var(--muted);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .log-entry.highlight{color:var(--accent);}
+  .log-entry.error{color:var(--accent2);}
+  .log-entry .ts{color:#333;margin-right:8px;}
+
+  /* ── OVERLAYS ── */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.87);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
+  .overlay.hidden{display:none;}
+  .overlay-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:40px 50px;text-align:center;max-width:480px;width:90%;}
+  .overlay-card h1{font-family:'Bebas Neue',cursive;font-size:3.5rem;letter-spacing:6px;color:var(--accent);margin-bottom:8px;}
+  .overlay-card p{color:var(--muted);font-size:0.8rem;line-height:1.8;margin-bottom:22px;}
+  .overlay-card .subtitle{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--text);margin-bottom:18px;}
+  .setup-options{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+  .setup-row{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .setup-row label{font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+  .setup-row select,.setup-row input{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'Roboto Mono',monospace;font-size:0.7rem;padding:6px 10px;border-radius:3px;}
+  .win-stats{display:flex;gap:28px;justify-content:center;margin-bottom:20px;}
+  .win-stat .val{font-family:'Bebas Neue',cursive;font-size:2.5rem;color:var(--accent);line-height:1;}
+  .win-stat .lbl{font-size:0.58rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:4px;}
+
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<!-- TITLE -->
+<div class="overlay" id="titleOverlay">
+  <div class="overlay-card">
+    <h1>NUMLETTO</h1>
+    <p>1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
+    <div class="subtitle">— GAME SETUP —</div>
+    <div class="setup-options">
+      <div class="setup-row">
+        <label>プレイヤー数</label>
+        <select id="playerCountSelect" onchange="updateNameFields()">
+          <option value="2">2人</option><option value="3">3人</option>
+          <option value="4">4人</option><option value="5">5人</option>
+          <option value="6">6人</option>
+        </select>
+      </div>
+      <div id="nameFields"></div>
+    </div>
+    <div class="setup-row" style="margin-top:4px;">
+      <label>ルームID</label>
+      <input type="text" id="roomIdInput" placeholder="空欄で自動生成（ホスト）" style="text-transform:uppercase;">
+    </div>
+    <p style="font-size:0.6rem;color:var(--muted);text-align:left;margin-top:4px;">友人と同じIDを入力すると同じ部屋に入れます</p>
+    <button class="btn primary" onclick="startGame()" style="width:100%;padding:14px;font-size:0.85rem;margin-top:12px;">DEAL TILES →</button>
+  </div>
+</div>
+
+<!-- WIN -->
+<div class="overlay hidden" id="winOverlay">
+  <div class="overlay-card">
+    <h1>COMPLETE!</h1>
+    <div id="winMessage" class="subtitle"></div>
+    <p id="winDesc"></p>
+    <button class="btn primary" onclick="location.reload()" style="width:100%;padding:14px;font-size:0.85rem;">PLAY AGAIN</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">NUMER<span>ETTO</span></div>
+  <div class="status-bar">
+    <span id="hdrTurn" class="turn-indicator">SETUP</span>
+    <span id="hdrRound">—</span>
+    <span id="hdrPool">POOL: —</span>
+    <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
+  </div>
+</header>
+
+<!-- LOG: 4 lines fixed under header -->
+<div class="log-wrap" id="logWrap"></div>
+
+<div class="game-wrap" id="gameWrap">
+
+  <!-- CENTER ZONE (hidden during setup) -->
+  <div class="center-zone" id="centerZone" style="display:none">
+
+    <!-- ① 引いたカードバナー -->
+    <div class="drawn-banner hidden" id="drawnBanner">
+      <div class="drawn-card-display" id="drawnCardDisplay">—</div>
+      <div class="drawn-banner-text">
+        <div class="drawn-banner-title">✦ 引いたタイル</div>
+        <div class="drawn-banner-sub" id="drawnBannerSub">—</div>
+        <div class="drawn-banner-rev" id="drawnBannerRev"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button class="flip-btn" id="btnFlipDrawn" onclick="flipDrawnTile()" style="display:none;">⟳ ひっくり返す</button>
+          <button class="flip-btn" id="btnCannotPlace" onclick="cannotPlace()" style="display:none;border-color:rgba(224,92,75,0.5);color:var(--accent2);background:rgba(224,92,75,0.06);">捨てる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 山札（全展開） -->
+    <div class="pool-section">
+      <div class="pool-label-row">
+        <span class="center-label">山 札</span>
+        <span class="pool-count-badge" id="poolCountBadge">— 枚</span>
+        <span style="font-size:0.58rem;color:var(--muted);">裏向きのタイルから1枚選んで引く</span>
+      </div>
+      <div class="pool-grid" id="poolGrid"></div>
+    </div>
+
+    <!-- ③ 捨て場 -->
+    <div class="discard-section">
+      <div class="pool-label-row">
+        <span class="center-label">捨て場</span>
+        <span style="font-size:0.58rem;color:var(--muted);">捨てられたタイル（裏向き）— クリックしてめくって取得</span>
+      </div>
+      <div class="discard-scroll" id="discardScroll"></div>
+    </div>
+
+  </div>
+
+  <!-- ACTION PANEL: hint + 置けないボタンのみ -->
+  <div class="action-panel" id="actionPanel" style="display:none">
+    <span class="action-label">ACTION</span>
+    <span id="actionHint" style="font-size:0.67rem;color:var(--muted);"></span>
+  </div>
+
+  <div class="phase-hint" id="phaseHint" style="display:none"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  ONLINE: WebSocket (PartyKit)
+// ════════════════════════════════════════════
+const PARTYKIT_URL = 'https://numletto-server.seunggiwe.partykit.dev';
+let ws = null;
+
+function connectToRoom(roomId) {
+  if(ws){ ws.close(); ws=null; }
+  ws = new WebSocket(`${PARTYKIT_URL}/party/${roomId}`);
+  ws.onopen = () => {
+    log(`ルーム [${roomId}] に接続しました。`,'highlight');
+    updateRoomStatus(roomId);
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if(msg.type === 'sync'){
+      G = msg.G;
+      setupPhase = null;
+      act = null;
+      document.getElementById('titleOverlay').classList.add('hidden');
+      document.getElementById('actionPanel').style.display='';
+      document.getElementById('centerZone').style.display='';
+      document.getElementById('phaseHint').style.display='';
+      render();
+    }
+    if(msg.type === 'waiting'){
+      log('他のプレイヤーを待っています…');
+    }
+  };
+  ws.onerror = () => log('接続エラーが発生しました。','error');
+  ws.onclose = () => log('サーバーから切断されました。','error');
+}
+
+function syncToServer(type='action'){
+  if(ws && ws.readyState === WebSocket.OPEN){
+    ws.send(JSON.stringify({type, G}));
+  }
+}
+
+function updateRoomStatus(roomId){
+  const el=document.getElementById('hdrPool');
+  if(el) el.textContent=`ROOM: ${roomId}`;
+}
+
+// ════════════════════════════════════════════
+//  CONSTANTS & GLOBALS
+// ════════════════════════════════════════════
+// 人数別配布枚数
+function getHandBlind(count)  { return count <= 4 ? 17 : count === 5 ? 14 : 11; }
+function getHandReveal(count) { return count <= 4 ? 5 : 4; }
+function getHandSize(count)   { return getHandBlind(count) + getHandReveal(count); }
+
+let G          = null;
+let setupPhase = null;
+let act        = null; // {phase, drawnTile?, playerIdx, fromDiscard?, tileFlipped?, selectedHandIdx?}
+// tileFlipped = true → キャンセル不可
+
+// ════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════
+function calcRev(n) {
+  // 1の位が0 → 逆さにすると先頭0になるため無効
+  if(n % 10 === 0) return null;
+  const map={'0':'0','1':'1','6':'9','8':'8','9':'6'};
+  const s=String(n);
+  for(const c of s) if(!(c in map)) return null;
+  const r=parseInt(s.split('').reverse().map(c=>map[c]).join(''));
+  return r!==n?r:null;
+}
+function makeTile(n){return{num:n,rev:calcRev(n)};}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function ts(){const n=new Date();return`${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;}
+function log(msg,cls=''){
+  const lw=document.getElementById('logWrap');if(!lw)return;
+  const d=document.createElement('div');d.className=`log-entry ${cls}`;
+  d.innerHTML=`<span class="ts">${ts()}</span>${msg}`;
+  // prepend so newest is at top
+  lw.insertBefore(d,lw.firstChild);
+  while(lw.children.length>4)lw.removeChild(lw.lastChild);
+}
+
+// ════════════════════════════════════════════
+//  TITLE SCREEN INIT
+// ════════════════════════════════════════════
+function updateNameFields(){
+  const count=parseInt(document.getElementById('playerCountSelect').value);
+  const container=document.getElementById('nameFields');
+  // preserve existing values
+  const existing=[];
+  for(let i=1;i<=6;i++){
+    const el=document.getElementById(`p${i}Name`);
+    existing.push(el?el.value:`PLAYER ${i}`);
+  }
+  container.innerHTML='';
+  for(let i=1;i<=count;i++){
+    const row=document.createElement('div');
+    row.className='setup-row';
+    row.innerHTML=`<label>P${i} 名前</label><input type="text" id="p${i}Name" value="${existing[i-1]||`PLAYER ${i}`}">`;
+    container.appendChild(row);
+  }
+}
+// 初期表示（2人分）
+document.addEventListener('DOMContentLoaded',updateNameFields);
+
+// ════════════════════════════════════════════
+//  GAME START
+// ════════════════════════════════════════════
+function startGame(){
+  const count=parseInt(document.getElementById('playerCountSelect').value);
+  const names=[];
+  for(let i=1;i<=count;i++){
+    const el=document.getElementById(`p${i}Name`);
+    names.push(el?el.value.trim()||`PLAYER ${i}`:`PLAYER ${i}`);
+  }
+  const nums=shuffle([...Array(100)].map((_,i)=>i+1));
+  let idx=0;
+  const HAND_BLIND=getHandBlind(count);
+  const HAND_REVEAL=getHandReveal(count);
+  const players=[];
+  for(let p=0;p<count;p++){
+    const hand=nums.slice(idx,idx+HAND_BLIND).map(n=>({tile:makeTile(n),revealed:false}));
+    idx+=HAND_BLIND;
+    const revealTiles=nums.slice(idx,idx+HAND_REVEAL).map(makeTile);
+    idx+=HAND_REVEAL;
+    // revealTilesを昇順ソートして提示（序列が崩れないように順番に配置しやすくする）
+    revealTiles.sort((a,b)=>a.num-b.num);
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
+  }
+  G={players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL};
+  // discard entries: {tile, discardedBy, faceUp, isNew}
+  // setupPhase: currentRevealIdx = which of the 5 tiles is being placed now (0-4)
+  setupPhase={playerIdx:0,currentRevealIdx:0,selectedInHand:false};
+  act=null;
+  // ルームID取得・生成
+  const roomInput = document.getElementById('roomIdInput');
+  const roomId = (roomInput.value.trim().toUpperCase()) || Math.random().toString(36).slice(2,7).toUpperCase();
+  roomInput.value = roomId;
+
+  document.getElementById('titleOverlay').classList.add('hidden');
+  document.getElementById('phaseHint').style.display='';
+  log(`ゲーム開始（${count}人）— 全員が表タイル挿入位置を決めます。`,'highlight');
+  render();
+
+  // サーバーに接続してGを送信
+  connectToRoom(roomId);
+  setTimeout(()=>syncToServer('start'), 400);
+}
+
+// ════════════════════════════════════════════
+//  MASTER RENDER
+// ════════════════════════════════════════════
+function render(){
+  if(setupPhase){renderSetup();}else{renderGame();}
+}
+
+// ════════════════════════════════════════════
+//  SETUP PHASE
+// ════════════════════════════════════════════
+function renderSetup(){
+  const sp=setupPhase,cp=sp.playerIdx;
+  document.getElementById('centerZone').style.display='none';
+  document.getElementById('actionPanel').style.display='none';
+  document.getElementById('phaseHint').style.display='';
+  clearPlayerZones();
+
+  const player=G.players[cp];
+  // Current tile being placed (1-at-a-time)
+  const curTile=player.revealTiles[sp.currentRevealIdx];
+  const showGaps=sp.selectedInHand; // tile selected, waiting for gap click
+
+  G.players.forEach((player2,pi)=>{
+    const isActive=pi===cp,isDone=pi<cp;
+    const remaining=isActive?(player.revealTiles.length-sp.currentRevealIdx):0;
+    const div=document.createElement('div');
+    div.className=`player-zone${isActive?' active-player':''}`;
+    const badge=isActive
+      ?`<span class="badge badge-red">配置中 — ${sp.currentRevealIdx+1}枚目 / 5枚</span>`
+      :isDone?`<span class="badge badge-yellow">配置完了 ✓</span>`
+      :`<span class="badge badge-muted">待機中</span>`;
+    div.innerHTML=`
+      <div class="player-header"><span class="player-name">${player2.name}</span>${badge}</div>
+      <div class="tile-row" id="tileRow${pi}"></div>
+      ${isActive?`<div class="setup-panel">
+        <div class="setup-panel-label">今配置するタイル（クリックして選択 → ↓スロットに差し込む）：</div>
+        <div class="reveal-hand" id="revealHand${pi}"></div>
+      </div>`:''}`;
+    insertPlayerZone(div);
+
+    // Hand row with gap slots (active only when tile is selected)
+    const tileRow=div.querySelector(`#tileRow${pi}`);
+    const showG=isActive&&showGaps;
+    for(let i=0;i<=player2.hand.length;i++){
+      const g=document.createElement('div');
+      g.className=`gap-slot${showG?' droppable':''}`;
+      g.textContent=showG?'↓':'';
+      if(showG){const gi=i;g.onclick=()=>insertRevealTile(gi);}
+      tileRow.appendChild(g);
+      if(i<player2.hand.length){
+        const h=player2.hand[i];
+        const el=document.createElement('div');
+        el.className=`tile ${h.revealed?'face-up':'face-down'}`;
+        el.textContent=h.revealed?h.tile.num:'';
+        tileRow.appendChild(el);
+      }
+    }
+
+    // Show only the current tile to place (with flip toggle)
+    if(isActive){
+      const rh=div.querySelector(`#revealHand${pi}`);
+      const useRevSetup=setupPhase.useRev===true;
+      // ひっくり返し = rev値を数字として表示するだけ（CSS回転なし）
+      const displayNum=useRevSetup&&curTile.rev?curTile.rev:curTile.num;
+      const el=document.createElement('div');
+      el.className=`tile face-up to-place${showGaps?' src-selected':''}`;
+      el.textContent=displayNum;
+      el.title=curTile.rev?`逆さで使用: ${curTile.rev}`:'';
+      el.onclick=()=>{ setupPhase.selectedInHand=!setupPhase.selectedInHand; render(); };
+      rh.appendChild(el);
+      // ひっくり返すボタン
+      if(curTile.rev){
+        const fb=document.createElement('button');
+        fb.className='flip-btn';fb.style.marginLeft='8px';
+        fb.textContent=useRevSetup?`⟳ 正向き (${curTile.num})`:`⟳ ひっくり返す (→${curTile.rev})`;
+        fb.onclick=(e)=>{e.stopPropagation();setupPhase.useRev=!setupPhase.useRev;render();};
+        rh.appendChild(fb);
+      }
+    }
+  });
+
+  const ph=document.getElementById('phaseHint');
+  ph.textContent=!showGaps
+    ?`📌 ${player.name}：オレンジのタイル [${curTile.num}] をクリックして選択してください。`
+    :`📌 [${curTile.num}] を選択中。手札の ↓ スロットをクリックして差し込んでください。`;
+
+  document.getElementById('hdrTurn').textContent=`SETUP — ${player.name}`;
+  document.getElementById('hdrRound').textContent=`配置 ${cp+1}/${G.players.length}人目 (${sp.currentRevealIdx+1}/5枚目)`;
+  document.getElementById('hdrPool').textContent=`POOL: ${G.pool.length}`;
+}
+
+function insertRevealTile(gapIdx){
+  const sp=setupPhase;
+  if(!sp.selectedInHand)return;
+  const player=G.players[sp.playerIdx];
+  const rawTile=player.revealTiles[sp.currentRevealIdx];
+  // 逆さまで使う場合は num/rev を入れ替えた tile を生成
+  const useRevSetup=sp.useRev===true&&rawTile.rev!=null;
+  const tile=useRevSetup?{num:rawTile.rev,rev:rawTile.num}:rawTile;
+  player.hand.splice(gapIdx,0,{tile,revealed:true});
+  sp.selectedInHand=false;
+  sp.useRev=false; // 次のタイルはリセット
+  log(`${player.name}: [${tile.num}] を位置 ${gapIdx+1} に挿入。`);
+  sp.currentRevealIdx++;
+  if(sp.currentRevealIdx>=player.revealTilesTotal){
+    delete player.revealTiles;
+    log(`${player.name} の配置完了！`,'highlight');
+    sp.playerIdx++;
+    sp.currentRevealIdx=0;
+    if(sp.playerIdx>=G.players.length){
+      setupPhase=null;G.currentPlayer=0;G.round=1;
+      document.getElementById('actionPanel').style.display='';
+      document.getElementById('centerZone').style.display='';
+      log('全員の配置完了！ゲームスタート！','highlight');
+      syncToServer('start');
+      render();return;
+    }
+  }
+  render();
+}
+
+// ════════════════════════════════════════════
+//  MAIN GAME RENDER
+// ════════════════════════════════════════════
+function renderGame(){
+  const cp=G.currentPlayer;
+  document.getElementById('centerZone').style.display='';
+  clearPlayerZones();
+
+  // Player zones
+  G.players.forEach((player,pi)=>{
+    const isActive=pi===cp&&!G.gameOver;
+    const div=document.createElement('div');
+    div.className=`player-zone${isActive?' active-player':''}`;
+    const revealed=player.hand.filter(h=>h.revealed).length;
+    const blindCount=player.hand.filter(h=>!h.revealed).length;
+    const pct=(revealed/G.handSize*100).toFixed(0);
+    // 裏タイル移動可能条件: 裏タイル>=1枚 かつ アクション待機中でない
+    const canMoveBlind=isActive&&!act&&!G.gameOver&&blindCount>=1;
+    const canPass=isActive&&!act&&!G.gameOver;
+    div.innerHTML=`
+      <div class="player-header">
+        <span class="player-name">${player.name}</span>
+        ${isActive?`<span class="badge badge-yellow">YOUR TURN</span>`:''}
+        <span class="player-progress">${revealed}/${G.handSize} · ${pct}%</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="tile-row" id="tileRow${pi}"></div>
+      ${isActive?(()=>{
+        const isMovePhase=act&&(act.phase==='awaitMoveBlind'||act.phase==='awaitMoveInsert');
+        if(isMovePhase){
+          return `<div class="player-action-bar">
+            <button class="btn-sm accent" onclick="cancelAction()">キャンセル</button>
+          </div>`;
+        }
+        return `<div class="player-action-bar">
+          <button class="btn-sm" onclick="startMoveBlind()" ${canMoveBlind?'':'disabled'}>裏タイル移動</button>
+          <button class="btn-sm" onclick="passAction()" ${canPass?'':'disabled'}>パス</button>
+        </div>`;
+      })():''}`;
+    insertPlayerZone(div);
+
+    const tileRow=div.querySelector(`#tileRow${pi}`);
+    const showInsertGaps=isActive&&act&&act.phase==='awaitMoveInsert';
+    const movingIdx=act&&act.selectedHandIdx;
+
+    // Build hand display — with gap slots interleaved when in insert mode
+    if(showInsertGaps){
+      // Render hand WITHOUT the moving tile (it's been logically lifted out)
+      const handWithout=player.hand.filter((_,i)=>i!==movingIdx);
+      for(let gi=0;gi<=handWithout.length;gi++){
+        // Gap slot
+        const gapBlocked=isGapBlockedForInsert(handWithout,gi);
+        const g=document.createElement('div');
+        g.className=`gap-slot${gapBlocked?' blocked':' droppable'}`;
+        g.textContent=gapBlocked?'':'↓';
+        g.title=gapBlocked?'連番の間には差し込めません':'ここに差し込む';
+        if(!gapBlocked){const gi2=gi;g.onclick=()=>doMoveInsert(gi2);}
+        tileRow.appendChild(g);
+        // Tile
+        if(gi<handWithout.length){
+          const h=handWithout[gi];
+          const el=document.createElement('div');
+          el.className=`tile ${h.revealed?'face-up':'face-down'}`;
+          el.textContent=h.revealed?h.tile.num:'';
+          if(h.revealed&&h.tile.rev)el.title=`逆さ:${h.tile.rev}`;
+          tileRow.appendChild(el);
+        }
+      }
+    } else {
+      player.hand.forEach((h,hi)=>{
+        const canSelect=isActive&&!h.revealed&&act&&
+          (act.phase==='awaitSwap'||act.phase==='awaitMoveBlind');
+        const isSel=act&&act.selectedHandIdx===hi&&act.playerIdx===pi;
+        const el=document.createElement('div');
+        el.className=`tile ${h.revealed?'face-up':'face-down'}`;
+        if(canSelect&&!h.revealed)el.classList.add('selectable');
+        if(isSel)el.classList.add('selected');
+        el.textContent=h.revealed?h.tile.num:'';
+        if(h.revealed&&h.tile.rev)el.title=`逆さ:${h.tile.rev}`;
+        if(canSelect&&!h.revealed)el.onclick=()=>clickHandTile(pi,hi);
+        tileRow.appendChild(el);
+      });
+    }
+  });
+
+  // ── 引いたカードバナー ──
+  const banner=document.getElementById('drawnBanner');
+  const flipBtn=document.getElementById('btnFlipDrawn');
+  const discardBtn=document.getElementById('btnCannotPlace');
+  if(act&&act.drawnTile&&act.tileFlipped){
+    const t=act.drawnTile;
+    const isFlipped=act.useRev===true;
+    banner.classList.remove('hidden');
+    const disp=document.getElementById('drawnCardDisplay');
+    // ひっくり返し = rev値を数字として表示するだけ（CSS回転なし）
+    disp.textContent=isFlipped&&t.rev?t.rev:t.num;
+    disp.style.transform='';
+    document.getElementById('drawnBannerSub').textContent=
+      `${G.players[G.currentPlayer].name} が引いた — 裏タイルと交換してください`;
+    document.getElementById('drawnBannerRev').textContent=
+      t.rev?`逆さで使用: ${t.rev}（現在: ${isFlipped?'逆さ':'正向き'}）`:'';
+    if(t.rev){flipBtn.style.display='';flipBtn.textContent=isFlipped?`⟳ 正向き (${t.num})`:`⟳ ひっくり返す (→${t.rev})`;}
+    else{flipBtn.style.display='none';}
+    discardBtn.style.display='';
+  }else{
+    banner.classList.add('hidden');
+    if(flipBtn)flipBtn.style.display='none';
+    if(discardBtn)discardBtn.style.display='none';
+  }
+
+  // ── 山札グリッド ──
+  const poolGrid=document.getElementById('poolGrid');
+  const poolCountBadge=document.getElementById('poolCountBadge');
+  poolGrid.innerHTML='';
+  poolCountBadge.textContent=`${G.pool.length} 枚`;
+  const canDraw=!act&&!G.gameOver;
+  G.pool.forEach((tile,pi2)=>{
+    const el=document.createElement('div');
+    el.className=`tile face-down${canDraw?' pool-tile':''}`;
+    // Show index subtly for dev (remove in prod):
+    // el.dataset.idx=pi2;
+    if(canDraw)el.onclick=()=>flipPoolTile(pi2,el);
+    poolGrid.appendChild(el);
+  });
+
+  // ── 捨て場 ── 裏向き（faceUpのみ表向き）、クリックで取得
+  const discardScroll=document.getElementById('discardScroll');
+  discardScroll.innerHTML='';
+  // Show newest first (reverse)
+  [...G.discard].reverse().forEach((entry,di)=>{
+    const realIdx=G.discard.length-1-di;
+    const wrapper=document.createElement('div');
+    wrapper.className='discard-entry';
+    const canTake=!act&&!G.gameOver;
+    const tileEl=document.createElement('div');
+    const showFace=entry.faceUp===true;
+    // 表向きタイルが手札に置けるか確認
+    let placeable=true;
+    if(showFace&&canTake){
+      const hand=G.players[G.currentPlayer].hand;
+      const blindIdxList=hand.map((h,i)=>h.revealed?-1:i).filter(i=>i>=0);
+      placeable=blindIdxList.some(hi=>{
+        const t=entry.tile;
+        return canFit(hand,hi,t.num)||(t.rev&&canFit(hand,hi,t.rev));
+      });
+    }
+    const unplaceable=showFace&&canTake&&!placeable;
+    tileEl.className=`tile ${showFace?'face-up':'face-down'}${canTake&&!unplaceable?' pool-tile':''}${unplaceable?' unplaceable':''}`;
+    tileEl.textContent=showFace?entry.tile.num:'';
+    if(showFace&&entry.tile.rev)tileEl.title=`逆さ:${entry.tile.rev}`;
+    if(entry.isNew){
+      const dot=document.createElement('div');dot.className='new-dot';
+      tileEl.appendChild(dot);
+    }
+    if(canTake&&!unplaceable)tileEl.onclick=()=>takeDiscard(realIdx);
+    const who=document.createElement('div');who.className='discard-who';
+    // 裏向きは誰が捨てたか表示（数字は伏せる）
+    who.textContent=entry.discardedBy||'？';
+    wrapper.appendChild(tileEl);
+    wrapper.appendChild(who);
+    discardScroll.appendChild(wrapper);
+  });
+
+  // ── Action panel ──
+  document.getElementById('actionPanel').style.display='';
+  const hint=document.getElementById('actionHint');
+  const ph=document.getElementById('phaseHint');
+  ph.style.display='';
+
+  if(!G.gameOver){
+    const name=G.players[cp].name;
+    if(!act){
+      hint.textContent=`${name} のターン：山札から引く / 捨て場から取る / 手札の裏タイル移動 / パス`;
+      ph.textContent='';
+    }else if(act.phase==='awaitPoolSelect'){
+      hint.textContent='山札のタイルを1枚クリックしてめくってください';
+      ph.textContent='💡 どのタイルも中身は同じ確率。直感で選ぼう！';
+    }else if(act.phase==='awaitSwap'){
+      const useNum=act.useRev&&act.drawnTile.rev?act.drawnTile.rev:act.drawnTile.num;
+      hint.textContent=`[${useNum}] として使用 — 置く裏タイルをクリック`;
+      ph.textContent=act.drawnTile.rev
+        ?`💡 ひっくり返すボタンで向きを変えられます。置けなければ「捨てる」を押してください`
+        :`💡 置けない場合は引いたタイル横の「捨てる」ボタンを押してください`;
+    }else if(act.phase==='awaitMoveBlind'){
+      hint.textContent='移動する裏タイルをクリック';
+      ph.textContent='💡 裏タイルを別の位置に差し込みます。連番の間には入れられません。';
+    }else if(act.phase==='awaitMoveInsert'){
+      hint.textContent='差し込む位置の ↓ をクリック（赤ハッチは連番隣接のためNG）';
+      ph.textContent='';
+    }
+  }else{
+    hint.textContent='ゲーム終了';ph.textContent='';
+  }
+
+  document.getElementById('hdrTurn').textContent=G.gameOver?'GAME OVER':G.players[cp].name;
+  document.getElementById('hdrRound').textContent=`ROUND ${G.round}`;
+  document.getElementById('hdrPool').textContent=`POOL: ${G.pool.length+G.discard.length}`;
+}
+
+// ════════════════════════════════════════════
+//  IN-GAME ACTIONS
+// ════════════════════════════════════════════
+
+// ⓪ 引いたタイルをひっくり返す（逆さ/正向き切り替え）
+function flipDrawnTile(){
+  if(!act||act.phase!=='awaitSwap'||!act.drawnTile.rev)return;
+  act.useRev=!act.useRev;
+  render();
+}
+
+// ⓪ パス（ターンをスキップ）
+function passAction(){
+  if(!G||setupPhase||act||G.gameOver)return;
+  log(`${G.players[G.currentPlayer].name}: パスした。`);
+  nextTurn();syncToServer();render();
+}
+
+// ① 山札タイルをクリック → めくりアニメ → awaitSwap
+function flipPoolTile(poolIdx, el){
+  if(!G||setupPhase||act||G.gameOver)return;
+  // アニメーション
+  el.classList.add('flipping');
+  // めくった時点でキャンセル不可のフラグ
+  act={phase:'awaitPoolSelect',drawnTile:null,playerIdx:G.currentPlayer,fromDiscard:false,tileFlipped:false};
+  setTimeout(()=>{
+    const tile=G.pool.splice(poolIdx,1)[0];
+    act={phase:'awaitSwap',drawnTile:tile,playerIdx:G.currentPlayer,fromDiscard:false,tileFlipped:true};
+    // clear all isNew flags in discard
+    G.discard.forEach(e=>e.isNew=false);
+    log(`${G.players[G.currentPlayer].name} が山札から [${tile.num}${tile.rev?'/'+tile.rev:''}] をめくった！`,'highlight');
+    syncToServer();
+    render();
+  },380);
+}
+
+// ② 捨て場から取得（裏向きタイルをめくって手に入れる）
+function takeDiscard(di){
+  if(!G||setupPhase||act||G.gameOver)return;
+  const entry=G.discard.splice(di,1)[0];
+  G.discard.forEach(e=>e.isNew=false);
+  // tile is now revealed to current player
+  act={phase:'awaitSwap',drawnTile:entry.tile,playerIdx:G.currentPlayer,fromDiscard:true,tileFlipped:true};
+  log(`${G.players[G.currentPlayer].name} が捨て場から（${entry.discardedBy} の捨てたタイル）[${entry.tile.num}] を取った！`,'highlight');
+  syncToServer();
+  render();
+}
+
+// ③ 手札の裏タイルクリック
+function clickHandTile(pi,hi){
+  if(!G||!act||setupPhase||pi!==G.currentPlayer)return;
+  const player=G.players[G.currentPlayer];
+
+  if(act.phase==='awaitSwap'){
+    if(player.hand[hi].revealed){log('表向きのタイルとは交換できません！','error');flashTile(pi,hi);return;}
+    const drawn=act.drawnTile.num,rev=act.drawnTile.rev;
+    // プレイヤーが選んだ向き（useRevフラグ）を優先、なければ自動選択
+    let useNum;
+    if(act.useRev&&rev){
+      useNum=rev;
+    } else {
+      useNum=drawn;
+      if(rev&&!canFit(player.hand,hi,drawn)&&canFit(player.hand,hi,rev))useNum=rev;
+    }
+    if(!canFit(player.hand,hi,useNum)){
+      // 逆さ向きも試す
+      const altNum=act.useRev?drawn:rev;
+      if(altNum&&canFit(player.hand,hi,altNum)){useNum=altNum;}
+      else{log(`[${useNum}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error');flashTile(pi,hi);return;}
+    }
+    const removed=player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
+    // 交換で出た裏タイルは裏向きで捨て場へ
+    G.discard.forEach(e=>e.isNew=false);
+    G.discard.push({tile:removed.tile,discardedBy:player.name,faceUp:false,isNew:true});
+    const bonus=isConsecutive(player.hand,hi);
+    log(`${player.name}: [${useNum}] を配置。`,bonus?'highlight':'');
+    act=null;player.turns++;
+    checkWin(G.currentPlayer);
+    if(!G.gameOver){
+      if(bonus){log(`🎉 連番！${player.name} がもう1回！`,'highlight');}
+      else{nextTurn();}
+    }
+    syncToServer();
+    render();
+
+  }else if(act.phase==='awaitMoveBlind'){
+    if(player.hand[hi].revealed){log('表向きタイルは移動できません！','error');return;}
+    act.phase='awaitMoveInsert';act.selectedHandIdx=hi;
+    log(`位置 ${hi+1} の裏タイルを選択。差し込む場所の ↓ をクリック。`);render();
+  }
+}
+
+function cannotPlace(){
+  if(!act||act.phase!=='awaitSwap')return;
+  G.discard.forEach(e=>e.isNew=false);
+  // 置けなかったタイルは表向きで捨て場へ（全員に数字が分かる）
+  G.discard.push({tile:act.drawnTile,discardedBy:G.players[G.currentPlayer].name,faceUp:true,isNew:true});
+  log(`${G.players[G.currentPlayer].name}: [${act.drawnTile.num}] は置けず → 表向きで捨て場へ。`,'error');
+  act=null;nextTurn();syncToServer();render();
+}
+
+function startMoveBlind(){
+  if(!G||setupPhase||act||G.gameOver)return;
+  const cp=G.currentPlayer;
+  const blindCount=G.players[cp].hand.filter(h=>!h.revealed).length;
+  if(blindCount<1){log('移動できる裏タイルがありません。','error');return;}
+  act={phase:'awaitMoveBlind',playerIdx:cp};
+  log(`${G.players[cp].name}: 裏タイル移動を選択。`);render();
+}
+
+// キャンセルはタイル未めくり操作(移動系)のみ
+function cancelAction(){
+  if(!act)return;
+  if(act.phase==='awaitMoveBlind'||act.phase==='awaitMoveInsert'){
+    log('裏タイル移動をキャンセルした。ターン継続。');
+    act=null;render();
+  }
+  // awaitSwap(めくり済み)はキャンセル不可
+}
+
+// ════════════════════════════════════════════
+//  MOVE-INSERT HELPERS
+// ════════════════════════════════════════════
+
+// handWithout = hand array with the moving tile removed
+// gi = gap index (0 = before first tile, N = after last tile)
+// Blocked if the two revealed tiles immediately flanking this gap are consecutive
+function isGapBlockedForInsert(handWithout, gi){
+  // Blocked ONLY when the two PHYSICALLY ADJACENT tiles on each side are
+  // both revealed AND consecutive (a blind tile in between breaks adjacency)
+  const left  = gi > 0                    ? handWithout[gi-1] : null;
+  const right = gi < handWithout.length   ? handWithout[gi]   : null;
+  if(left && right && left.revealed && right.revealed){
+    if(Math.abs(right.tile.num - left.tile.num) === 1) return true;
+  }
+  return false;
+}
+
+// Perform the actual insert: remove tile from originalIdx, splice into new gap position
+function doMoveInsert(gapIdx){
+  if(!act||act.phase!=='awaitMoveInsert')return;
+  const player=G.players[G.currentPlayer];
+  const from=act.selectedHandIdx;
+  const movedTile=player.hand.splice(from,1)[0]; // remove tile
+  // gapIdx was computed on handWithout (hand without the moving tile)
+  // after removal, direct splice at gapIdx is correct
+  player.hand.splice(gapIdx,0,movedTile);
+  // Compute display positions for log
+  const newPos=gapIdx+1;
+  log(`${player.name}: 裏タイルを位置${from+1}から位置${newPos}へ差し込んだ。`);
+  act=null;nextTurn();syncToServer();render();
+}
+
+// ════════════════════════════════════════════
+//  LOGIC HELPERS
+// ════════════════════════════════════════════
+function canFit(hand,hi,num){
+  let L=-Infinity,R=Infinity;
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){L=hand[i].tile.num;break;}
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){R=hand[i].tile.num;break;}
+  return num>L&&num<R;
+}
+function neighborStr(hand,hi){
+  let L='—',R='—';
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){L=hand[i].tile.num;break;}
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){R=hand[i].tile.num;break;}
+  return`${L} と ${R}`;
+}
+function isConsecutive(hand,hi){
+  const cur=hand[hi].tile.num;
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){if(Math.abs(hand[i].tile.num-cur)===1)return true;break;}
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){if(Math.abs(hand[i].tile.num-cur)===1)return true;break;}
+  return false;
+}
+function nextTurn(){
+  G.currentPlayer=(G.currentPlayer+1)%G.players.length;
+  if(G.currentPlayer===0)G.round++;
+}
+function checkWin(pi){
+  const pl=G.players[pi];
+  if(!pl.hand.every(h=>h.revealed))return;
+  for(let i=1;i<pl.hand.length;i++)if(pl.hand[i].tile.num<=pl.hand[i-1].tile.num)return;
+  G.gameOver=true;G.winner=pi;
+  log(`🏆 ${pl.name} が全タイルを昇順に！COMPLETE！`,'highlight');
+  showWin(pi);
+}
+function showWin(pi){
+  const pl=G.players[pi];
+  document.getElementById('winMessage').textContent=`— ${pl.name} WINS —`;
+  document.getElementById('winDesc').textContent=`${pl.name} が先に全タイルを昇順で表向きにした！`;
+  document.getElementById('winOverlay').classList.remove('hidden');
+}
+function flashTile(pi,hi){
+  const row=document.getElementById(`tileRow${pi}`);if(!row)return;
+  const el=row.children[hi];if(!el)return;
+  el.classList.add('invalid-flash');
+  setTimeout(()=>el.classList.remove('invalid-flash'),400);
+}
+
+// ── DOM HELPERS ──
+function clearPlayerZones(){
+  [...document.getElementById('gameWrap').querySelectorAll('.player-zone')].forEach(el=>el.remove());
+}
+function insertPlayerZone(div){
+  const gw=document.getElementById('gameWrap');
+  gw.insertBefore(div,document.getElementById('centerZone'));
+}
+</script>
+</body>
+</html>
