@@ -90,6 +90,32 @@
   .gap-slot{width:14px;height:60px;border-radius:4px;border:2px dashed transparent;cursor:default;display:flex;align-items:center;justify-content:center;transition:all 0.12s;flex-shrink:0;font-size:0.9rem;color:transparent;}
   .gap-slot.droppable{border-color:transparent;background:transparent;cursor:pointer;color:var(--accent);}
   .gap-slot.droppable:hover{color:#fff;transform:scale(1.3);}
+
+  /* タイル差し込みアニメ */
+  @keyframes tile-insert{
+    0%  {transform:translateY(-28px) scale(0.85);opacity:0;}
+    60% {transform:translateY(4px) scale(1.06);opacity:1;}
+    100%{transform:translateY(0) scale(1);opacity:1;}
+  }
+  .tile.just-inserted{
+    animation:tile-insert 0.28s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  /* 裏タイル交換アニメ（出ていく側） */
+  @keyframes tile-out{
+    0%  {transform:translateY(0) scale(1);opacity:1;}
+    100%{transform:translateY(20px) scale(0.7);opacity:0;}
+  }
+  .tile.just-swapped-out{
+    animation:tile-out 0.22s ease forwards;
+  }
+  /* 裏タイル交換アニメ（入ってくる側） */
+  @keyframes tile-in{
+    0%  {transform:translateY(-20px) scale(0.7);opacity:0;}
+    100%{transform:translateY(0) scale(1);opacity:1;}
+  }
+  .tile.just-swapped-in{
+    animation:tile-in 0.25s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
   /* 連番隣接スロット — 差し込み禁止 */
   .gap-slot.blocked{
     width:8px;cursor:not-allowed;
@@ -362,7 +388,7 @@
 <div id="particles"></div>
 
 <header>
-  <div class="logo">NUML<span>ETTO</span></div>
+  <div class="logo"><span style="color:var(--accent)">NUM</span><span style="color:var(--accent2)">LETTO</span></div>
   <div class="status-bar">
     <span id="hdrTurn" class="turn-indicator">SETUP</span>
     <span id="hdrRound">—</span>
@@ -624,9 +650,9 @@ function showLobby(players, roomId){
 function hostStartGame(){
   if(!amIHost || !ws) return;
 
-  // 待合室のプレイヤーリストから名前を取得してG生成
+  // 待合室のプレイヤーリストから名前を取得してG生成（順番をシャッフル）
   const items = document.getElementById('lobbyPlayerList').querySelectorAll('.lp-name');
-  const names = [...items].map(el => el.textContent.trim());
+  const names = shuffle([...items].map(el => el.textContent.trim()));
   const count = names.length;
 
   const nums = shuffle([...Array(100)].map((_,i)=>i+1));
@@ -782,8 +808,9 @@ function getHandSize(count)   { return getHandBlind(count) + getHandReveal(count
 
 let G          = null;
 let setupPhase = null;
-let act        = null; // {phase, drawnTile?, playerIdx, fromDiscard?, tileFlipped?, selectedHandIdx?}
-// tileFlipped = true → キャンセル不可
+let act        = null;
+let insertAnim = null; // {pi, hi} 差し込みアニメ対象
+let swapAnim   = null; // {pi, hi} スワップアニメ対象
 
 // ════════════════════════════════════════════
 //  HELPERS
@@ -936,6 +963,7 @@ function insertRevealTile(pi, gapIdx){
   player.hand.splice(gapIdx,0,{tile,revealed:true});
   sp.selectedInHand=false;
   sp.useRev=false;
+  insertAnim={pi, hi:gapIdx};
   playSound('place');
   log(`${player.name}: [${tile.num}] を位置 ${gapIdx+1} に挿入。`);
   sp.currentRevealIdx++;
@@ -984,7 +1012,7 @@ function renderGame(){
       <div class="player-header">
         <span class="player-name">${player.name}</span>
         ${isActive?`<span class="badge badge-yellow">YOUR TURN</span>`:''}
-        <span class="player-progress">${revealed}/${G.handSize} · ${pct}%</span>
+        <span class="player-progress">${revealed}/${G.handSize}</span>
         <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
       </div>
       <div class="tile-row" id="tileRow${pi}"></div>
@@ -1244,6 +1272,7 @@ function clickHandTile(pi,hi){
       else{playSound('error');log(`[${useNum}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error');flashTile(pi,hi);return;}
     }
     const removed=player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
+    swapAnim={pi, hi};
     // 交換で出た裏タイルは裏向きで捨て場へ
     G.discard.forEach(e=>e.isNew=false);
     playSound('discard');
@@ -1388,7 +1417,7 @@ function showWin(pi){
 function rematch(){
   if(!amIHost||!ws)return;
   // 名前リストを保持したままhostStartGameを再実行
-  const names=G.players.map(p=>p.name);
+  const names=shuffle(G.players.map(p=>p.name)); // リマッチも順番シャッフル
   const count=names.length;
   const nums=shuffle([...Array(100)].map((_,i)=>i+1));
   let idx=0;
