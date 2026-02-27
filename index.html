@@ -25,8 +25,28 @@
   .game-wrap{display:flex;flex-direction:column;flex:1;}
 
   /* ── PLAYER ZONES ── */
-  .player-zone{padding:14px 24px 12px;border-bottom:1px solid var(--border);transition:background 0.3s;}
+  .player-zone{padding:14px 24px 12px 14px;border-bottom:1px solid var(--border);transition:background 0.3s;display:flex;align-items:flex-start;gap:0;}
   .player-zone.active-player{background:linear-gradient(90deg,rgba(232,212,77,0.06) 0%,transparent 70%);border-left:3px solid var(--accent);}
+  .turn-arrow{
+    width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-size:1.2rem;color:var(--muted);padding-top:2px;user-select:none;
+    transition:color 0.3s;
+  }
+  .turn-arrow.active{color:var(--accent);}
+  .player-zone-inner{flex:1;min-width:0;}
+  /* どんぐりハイライト: 選択前の拡大 */
+  @keyframes donguri-select-pop{
+    0%  {transform:scale(1);}
+    40% {transform:scale(1.35) translateY(-8px);filter:brightness(1.8);}
+    70% {transform:scale(1.3) translateY(-8px);}
+    100%{transform:scale(1.3) translateY(-8px);}
+  }
+  .tile.donguri-selected{
+    animation:donguri-select-pop 0.3s cubic-bezier(0.22,1,0.36,1) forwards !important;
+    border-color:#f0a030 !important;
+    box-shadow:0 0 24px 8px rgba(240,160,48,0.8) !important;
+    z-index:60;position:relative;
+  }
   .player-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
   .player-name{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--muted);}
   .active-player .player-name{color:var(--accent);}
@@ -701,7 +721,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">beta 2.0.7</span>
+      <span class="version-badge" onclick="openChangelog()">beta 2.0.8</span>
     </div>
   </div>
 </div>
@@ -785,7 +805,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.7</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.8</span>
   </div>
 </header>
 
@@ -969,6 +989,15 @@ function connectToRoom(roomId) {
           const modal=document.getElementById('effectCardModal');
           if(!modal.classList.contains('show')){
             showCoinFlip(G.act.coinResult==='heads');
+          }
+        }
+      } else if(!G.act||G.act.phase!=='awaitCoinFlip'){
+        // コインフリップフェーズ終了 → 観戦者のモーダルを閉じる
+        const isMe = !myName||(G.players[G.currentPlayer]&&G.players[G.currentPlayer].name===myName);
+        if(!isMe){
+          const modal=document.getElementById('effectCardModal');
+          if(modal.classList.contains('show')&&document.getElementById('coinFlipDisplay')){
+            closeEffectCardModal();
           }
         }
       }
@@ -1514,7 +1543,12 @@ function renderGame(){
     const isMyTurn=isActive&&(!myName||G.players[pi].name===myName);
     const canMoveBlind=isMyTurn&&!act&&!G.gameOver&&blindCount>=1;
     const canPass=isMyTurn&&!act&&!G.gameOver;
+    const dir=G.direction||1;
+    // turn-arrowの方向: 正回転(1)=↓(下から次)、逆回転(-1)=↑
+    const arrowChar = dir===1 ? '↓' : '↑';
     div.innerHTML=`
+      <div class="turn-arrow${isActive?' active':''}"> ${arrowChar} </div>
+      <div class="player-zone-inner">
       <div class="player-header">
         <span class="player-name">${player.name}</span>
         ${isActive?`<span class="badge badge-yellow">YOUR TURN</span>`:''}
@@ -1545,9 +1579,9 @@ function renderGame(){
             <span style="font-size:0.6rem;color:#f0a030;letter-spacing:1px;">表タイルを選択</span>
           </div>`;
         }
-        if(act&&act.phase==='awaitWildPlace'&&isMyTurn){
+        if(act&&act.phase==='awaitDiscardBlind'&&isMyTurn){
           return `<div class="player-action-bar">
-            <span style="font-size:0.6rem;color:#ffd700;letter-spacing:1px;">☆ を置く位置を選択してください</span>
+            <span style="font-size:0.6rem;color:#ffd700;letter-spacing:1px;">捨てる裏向きタイルを選択してください</span>
           </div>`;
         }
         if(act&&act.phase==='awaitIkkaPool'&&isMyTurn){
@@ -1768,9 +1802,9 @@ function renderGame(){
     }else if(act.phase==='awaitEffectCard'){
       hint.textContent=`${G.players[cp].name}: 効果カードを引いた！`;
       ph.textContent='💡 効果カードを確認して使用するか選んでください';
-    }else if(act.phase==='awaitWildPlace'){
-      hint.textContent='⭐ ワイルドカード — ☆を置く位置をクリックして選択';
-      ph.textContent='💡 手札の好きな位置に☆（ワイルドカード）を配置できます。連番になれば効果カードボーナス！';
+    }else if(act.phase==='awaitDiscardBlind'){
+      hint.textContent='👑 一か八か表 — 捨てる裏向きタイルをクリック';
+      ph.textContent='💡 光っている裏向きタイルを1枚選んで捨てます。';
     }else if(act.phase==='awaitDonguri'){
       hint.textContent='🌰 どんぐりころころ — 光るタイルをクリックして選択';
       ph.textContent='💡 選んだ表タイルが裏返されます（自分のタイルも選べます）';
@@ -1956,7 +1990,7 @@ const EFFECT_CARDS = [
   {
     id:'ichikabachika',
     name:'一か八か',
-    desc:'コインフリップ。表が出たらワイルドカード（☆）を獲得して好きな位置に配置できる。\n裏が出たら自分の表タイルが1枚ランダムで裏返される。',
+    desc:'コインフリップ。表が出たら手札の裏向きタイルを1枚捨てられる。\n裏が出たら自分の表タイルが1枚ランダムで裏返される。',
     color:'#ffd700',
   },
   {
@@ -2259,7 +2293,7 @@ function showCoinFlip(heads){
   const isMyTurnNow=!myName||G.players[G.currentPlayer].name===myName;
   document.getElementById('ecButtons').innerHTML = isMyTurnNow
     ? (heads
-        ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="executeIkkaHeads()">✦ ワイルドカードを獲得</button>`
+        ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="executeIkkaHeads()">✦ 裏向きタイルを捨てる</button>`
         : `<button class="ec-use-btn" style="border-color:#ff6060;color:#ff6060;background:#ff606018;" onclick="executeIkkaTails()">✦ 運命を受け入れる</button>`)
     : `<div style="font-size:0.65rem;color:#555;letter-spacing:1px;text-align:center;">結果を待っています…</div>`;
   inner.classList.remove('reveal');
@@ -2272,11 +2306,32 @@ function showCoinFlip(heads){
 function executeIkkaHeads(){
   closeEffectCardModal();
   const cp=G.currentPlayer;
-  log(`👑 表！${G.players[cp].name} がワイルドカード（☆）を獲得！`,'highlight');
-  act.phase='awaitWildPlace';
+  const player=G.players[cp];
+  const blindIdxs=player.hand.map((h,i)=>!h.revealed?i:-1).filter(i=>i>=0);
+  if(blindIdxs.length===0){
+    log(`👑 表！でも裏向きタイルがないので無効。`,'highlight');
+    act=null;G.act=null;nextTurn();syncToServer();render();
+    return;
+  }
+  log(`👑 表！${player.name} が裏向きタイルを1枚捨てられる！`,'highlight');
+  act.phase='awaitDiscardBlind';
   G.act=act;
   syncToServer();
   render();
+}
+
+// 表: 裏向きタイルを1枚捨てる
+function discardBlindTile(hi){
+  if(!act||act.phase!=='awaitDiscardBlind')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  if(player.hand[hi]&&!player.hand[hi].revealed){
+    const discarded=player.hand.splice(hi,1)[0];
+    log(`👑 ${player.name} が裏向きタイル[?]を捨てた！`,'highlight');
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  }
 }
 
 // 裏: 自分の表タイルをランダムで1枚裏返す
@@ -2381,21 +2436,28 @@ function executeDonguri(targetPi, targetHi){
     playSound('error');return;
   }
   const flipped=defender.hand[targetHi].tile;
-  // 先に手札を変更
-  defender.hand[targetHi]={tile:flipped,revealed:false};
-  // syncで状態を全員に配信（手札変更済み）
+  // フェーズ1: ハイライト+拡大 (350ms)
   act.donguriTarget={pi:targetPi,hi:targetHi,num:flipped.num};
+  act.donguriPhase='highlight';
   G.act=act;
   syncToServer();
-  // アニメ
-  donguriAnim={pi:targetPi,hi:targetHi};
-  playSound('donguri');
-  log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
-  render();
+  render(); // donguri-selectedが付く
+  playSound('effectcard');
   setTimeout(()=>{
-    act=null;G.act=null;
-    afterEffectCardUsed();syncToServer();render();
-  }, 950);
+    // フェーズ2: 裏返しアニメ
+    defender.hand[targetHi]={tile:flipped,revealed:false};
+    act.donguriPhase='flip';
+    G.act=act;
+    syncToServer();
+    donguriAnim={pi:targetPi,hi:targetHi};
+    playSound('donguri');
+    log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
+    render();
+    setTimeout(()=>{
+      act=null;G.act=null;
+      afterEffectCardUsed();syncToServer();render();
+    }, 950);
+  }, 400);
 }
 
 // レディーファースト: プレイヤー名で指名
@@ -2425,7 +2487,7 @@ function executeLadyFirst(targetName){
 // sync受信時: 効果カードモーダルを全員に表示
 function checkEffectCardSync(){
   if(!G||!G.act)return;
-  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool','awaitCoinFlip','awaitRoulette','awaitWildPlace'];
+  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool','awaitCoinFlip','awaitRoulette','awaitDiscardBlind'];
   // モーダルが選択アニメ中(closing)なら何もしない
   if(document.getElementById('effectCardModal').classList.contains('closing')) return;
   // awaitDonguri: 対象確定後、観戦者もアニメ
@@ -2922,9 +2984,19 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'beta 2.0.7';
+const CURRENT_VERSION = 'beta 2.0.8';
 
 const CHANGELOG = [
+  {
+    version: 'beta 2.0.8',
+    date: '2026-02-28',
+    items: [
+      { text: 'プレイヤー左側に回転方向矢印を追加', highlight: true },
+      { text: '一か八か・表: ワイルドカード削除→裏向きタイルを1枚捨てる効果に変更', highlight: true },
+      { text: '一か八か: 観戦者のコインフリップモーダルが消えないバグを修正', highlight: true },
+      { text: 'どんぐりころころ: 選択時にハイライト拡大→裏返しの2段階アニメに変更', highlight: true },
+    ]
+  },
   {
     version: 'beta 2.0.7',
     date: '2026-02-28',
