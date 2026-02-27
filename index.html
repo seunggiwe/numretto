@@ -208,6 +208,35 @@
     animation:ec-choice-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
   }
   #ecChoiceWrap .ec-card-choice:nth-child(3){animation-delay:0.08s;}
+  /* 選択アニメ */
+  @keyframes ec-selected{
+    0%  {transform:translateY(0) scale(1);}
+    25% {transform:translateY(-18px) scale(1.06);}
+    60% {transform:translateY(-14px) scale(1.08);box-shadow:0 24px 60px rgba(0,0,0,0.6);}
+    100%{transform:translateY(-14px) scale(1.08);opacity:1;}
+  }
+  @keyframes ec-rejected{
+    0%  {transform:translateY(0) scale(1);opacity:1;}
+    30% {transform:translateY(6px) scale(0.97);opacity:0.5;}
+    100%{transform:translateY(12px) scale(0.94);opacity:0;filter:blur(2px);}
+  }
+  @keyframes ec-modal-fadeout{
+    0%  {opacity:1;}
+    60% {opacity:1;}
+    100%{opacity:0;}
+  }
+  .ec-card-choice.selected{
+    animation:ec-selected 0.5s cubic-bezier(0.22,1,0.36,1) forwards !important;
+    z-index:10;
+  }
+  .ec-card-choice.rejected{
+    animation:ec-rejected 0.45s cubic-bezier(0.4,0,1,1) forwards !important;
+    pointer-events:none;
+  }
+  #effectCardModal.closing{
+    animation:ec-modal-fadeout 0.7s ease forwards;
+    pointer-events:none;
+  }
 
   /* 一か八か: コインフリップ演出 */
   @keyframes coin-spin{
@@ -600,7 +629,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">beta 2.0.2</span>
+      <span class="version-badge" onclick="openChangelog()">beta 2.0.3</span>
     </div>
   </div>
 </div>
@@ -672,7 +701,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.2</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.3</span>
   </div>
 </header>
 
@@ -1863,8 +1892,52 @@ function openEffectCardChoiceModal(cards){
 
 function selectEffectCard(idx){
   drawnEffectCard=drawnEffectCards[idx];
+  // 他プレイヤーに選択を先にsync
+  if(act){
+    act.selectedCard=drawnEffectCard.id;
+    act.selectedCardIdx=idx;
+    G.act=act;
+    syncToServer();
+  }
   drawnEffectCards=[];
-  useEffectCard();
+  // カードアニメ
+  const cards=document.querySelectorAll('#ecChoiceWrap .ec-card-choice');
+  cards.forEach((el,i)=>{
+    el.style.animation='none';
+    void el.offsetWidth;
+    if(i===idx) el.classList.add('selected');
+    else el.classList.add('rejected');
+  });
+  // モーダルfadeout → useEffectCard
+  const modal=document.getElementById('effectCardModal');
+  setTimeout(()=>{
+    modal.classList.add('closing');
+    setTimeout(()=>{
+      modal.classList.remove('closing');
+      closeEffectCardModal();
+      useEffectCard();
+    }, 700);
+  }, 500);
+}
+
+// 観戦者: 選択アニメを再生してモーダルを閉じる
+function playSelectionAnim(idx){
+  const cards=document.querySelectorAll('#ecChoiceWrap .ec-card-choice');
+  if(!cards.length) return;
+  cards.forEach((el,i)=>{
+    el.style.animation='none';
+    void el.offsetWidth;
+    if(i===idx) el.classList.add('selected');
+    else el.classList.add('rejected');
+  });
+  const modal=document.getElementById('effectCardModal');
+  setTimeout(()=>{
+    modal.classList.add('closing');
+    setTimeout(()=>{
+      modal.classList.remove('closing');
+      closeEffectCardModal();
+    }, 700);
+  }, 500);
 }
 
 function openEffectCardModal(card){
@@ -1922,9 +1995,9 @@ function useEffectCard(){
   const card = drawnEffectCard;
   drawnEffectCard=null;
   if(id==='mouikkai'){
-    act=null;G.act=null;
     log(`🔁 ${G.players[cp].name} のターンが続く！`,'highlight');
-    syncToServer();render();
+    afterEffectCardUsed();
+    return;
   } else if(id==='tobashi'){
     const skipped=G.players[(cp+1+G.players.length)%G.players.length].name;
     log(`⏭ ${skipped} をスキップ！`,'highlight');
@@ -2133,18 +2206,48 @@ function executeLadyFirst(targetName){
 // sync受信時: 効果カードモーダルを全員に表示
 function checkEffectCardSync(){
   if(!G||!G.act)return;
+  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool'];
   if(G.act.phase==='awaitEffectCard'){
     if(!(G.act.effectCards||G.act.effectCard)) return; // まだカード未決定
     const isMe = !myName||G.players[G.currentPlayer].name===myName;
-    if(isMe) return; // 本人はdrawEffectCard()でモーダル済み
+    if(isMe){
+      // 本人: モーダルがまだ開いていなければ開く（レースコンディション対策）
+      const modal=document.getElementById('effectCardModal');
+      if(!modal.classList.contains('show')){
+        if(G.act.effectCards){
+          const cards=G.act.effectCards.map(id=>EFFECT_CARDS.find(c=>c.id===id)).filter(Boolean);
+          if(cards.length>=2) openEffectCardChoiceModal(cards);
+        }
+      }
+      return;
+    }
+    // 他プレイヤー
     if(G.act.effectCards){
       const cards=G.act.effectCards.map(id=>EFFECT_CARDS.find(c=>c.id===id)).filter(Boolean);
-      if(cards.length>0) openEffectCardForSpectator(cards[0],cards[1]);
+      if(cards.length>0){
+        const modal=document.getElementById('effectCardModal');
+        // 選択済みでアニメ未再生なら選択アニメを実行
+        if(G.act.selectedCardIdx!=null){
+          if(!modal.classList.contains('show')){
+            // モーダルが閉じていたら開いてからアニメ
+            openEffectCardForSpectator(cards[0],cards[1]);
+            setTimeout(()=>playSelectionAnim(G.act.selectedCardIdx), 200);
+          } else {
+            // 既に開いていればそのままアニメ
+            playSelectionAnim(G.act.selectedCardIdx);
+          }
+        } else if(!modal.classList.contains('show')){
+          openEffectCardForSpectator(cards[0],cards[1]);
+        }
+      }
     } else {
       const card=EFFECT_CARDS.find(c=>c.id===G.act.effectCard);
-      if(card) openEffectCardForSpectator(card);
+      if(card){
+        const modal=document.getElementById('effectCardModal');
+        if(!modal.classList.contains('show')) openEffectCardForSpectator(card);
+      }
     }
-  } else if(!G.act||G.act.phase!=='awaitDonguri'&&G.act.phase!=='awaitLadyFirst'&&G.act.phase!=='awaitIkkaPool'){
+  } else if(!effectPhases.includes(G.act.phase)){
     closeEffectCardModal();
   }
 }
@@ -2547,9 +2650,17 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'beta 2.0.2';
+const CURRENT_VERSION = 'beta 2.0.3';
 
 const CHANGELOG = [
+  {
+    version: 'beta 2.0.3',
+    date: '2026-02-27',
+    items: [
+      { text: 'もう一回！選択後にターンが終了するバグを修正', highlight: true },
+      { text: '効果カード選択モーダルが表示されないことがあるバグを修正', highlight: true },
+    ]
+  },
   {
     version: 'beta 2.0.2',
     date: '2026-02-27',
