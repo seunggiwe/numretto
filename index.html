@@ -116,6 +116,88 @@
   .tile.just-swapped-in{
     animation:tile-in 0.25s cubic-bezier(0.22,1,0.36,1) forwards;
   }
+  /* ── 効果カードモーダル ── */
+  #effectCardModal{
+    position:fixed;inset:0;background:rgba(0,0,0,0.82);
+    display:flex;align-items:center;justify-content:center;
+    z-index:400;backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;
+    transform:scale(0.92);
+  }
+  #effectCardModal.show{opacity:1;pointer-events:all;transform:scale(1);}
+  #effectCardInner{
+    background:var(--surface);border:2px solid var(--accent);
+    border-radius:12px;padding:32px 36px;max-width:400px;width:92%;
+    text-align:center;
+  }
+  #effectCardInner .ec-label{
+    font-size:0.58rem;letter-spacing:3px;text-transform:uppercase;
+    color:var(--accent);margin-bottom:10px;
+  }
+  #effectCardInner .ec-name{
+    font-family:'Bebas Neue',cursive;font-size:2.4rem;letter-spacing:4px;
+    color:var(--text);margin-bottom:12px;line-height:1.1;
+  }
+  #effectCardInner .ec-desc{
+    font-size:0.72rem;color:#888;line-height:1.8;margin-bottom:22px;
+    min-height:40px;
+  }
+  #effectCardInner .ec-buttons{display:flex;gap:8px;flex-direction:column;}
+  .ec-use-btn{
+    font-family:'Roboto Mono',monospace;font-size:0.75rem;letter-spacing:2px;
+    text-transform:uppercase;padding:12px;border-radius:4px;
+    border:1px solid var(--accent);background:rgba(232,212,77,0.1);
+    color:var(--accent);cursor:pointer;transition:all 0.15s;
+  }
+  .ec-use-btn:hover{background:rgba(232,212,77,0.25);}
+  .ec-skip-btn{
+    font-family:'Roboto Mono',monospace;font-size:0.65rem;letter-spacing:1px;
+    text-transform:uppercase;padding:8px;border-radius:4px;
+    border:1px solid #333;background:transparent;
+    color:#555;cursor:pointer;transition:all 0.15s;
+  }
+  .ec-skip-btn:hover{border-color:#555;color:#888;}
+  /* 効果カードアニメ（ドロー時）*/
+  @keyframes ec-reveal{
+    0%  {transform:rotateY(90deg) scale(0.8);opacity:0;}
+    60% {transform:rotateY(-8deg) scale(1.04);opacity:1;}
+    100%{transform:rotateY(0deg) scale(1);opacity:1;}
+  }
+  #effectCardInner.reveal{animation:ec-reveal 0.45s cubic-bezier(0.22,1,0.36,1) forwards;}
+
+  /* どんぐりころころ: 対象タイル選択 */
+  .tile.donguri-target{
+    border-color:#f0a030 !important;
+    box-shadow:0 0 12px rgba(240,160,48,0.7) !important;
+    cursor:crosshair !important;
+    animation:donguri-pulse 0.7s ease infinite;
+  }
+  @keyframes donguri-pulse{
+    0%,100%{box-shadow:0 0 6px 2px rgba(240,160,48,0.5);}
+    50%{box-shadow:0 0 20px 6px rgba(240,160,48,0.25);}
+  }
+  /* どんぐりころころ発動: 裏返しアニメ */
+  @keyframes donguri-flip{
+    0%  {transform:rotateY(0deg) scale(1);}
+    30% {transform:rotateY(90deg) scale(1.15) translateY(-12px);}
+    55% {transform:rotateY(180deg) scale(1.2) translateY(-16px);}
+    80% {transform:rotateY(270deg) scale(1.1) translateY(-8px);}
+    100%{transform:rotateY(360deg) scale(1) translateY(0);}
+  }
+  .tile.donguri-flipping{
+    animation:donguri-flip 0.7s cubic-bezier(0.22,1,0.36,1) forwards !important;
+    z-index:50;
+  }
+
+  /* レディーファースト: プレイヤー選択 */
+  .lf-player-btn{
+    font-family:'Roboto Mono',monospace;font-size:0.68rem;letter-spacing:1px;
+    padding:9px 16px;border-radius:4px;border:1px solid #e070f0;
+    background:rgba(224,112,240,0.08);color:#e070f0;cursor:pointer;
+    transition:all 0.15s;width:100%;margin-bottom:6px;
+  }
+  .lf-player-btn:hover{background:rgba(224,112,240,0.22);}
+
   /* 萬國驚天掌ボタン */
   .btn-sm.mankoku{
     border-color:#c040e0;color:#c040e0;
@@ -473,6 +555,16 @@
 <div class="overlay hidden" id="resultOverlay">
   <div class="overlay-card" style="max-width:540px;padding:28px 32px;">
     <div id="resultContent"></div>
+  </div>
+</div>
+
+<!-- 効果カードモーダル -->
+<div id="effectCardModal">
+  <div id="effectCardInner">
+    <div class="ec-label">✦ EFFECT CARD ✦</div>
+    <div class="ec-name" id="ecName">—</div>
+    <div class="ec-desc" id="ecDesc">—</div>
+    <div class="ec-buttons" id="ecButtons"></div>
   </div>
 </div>
 
@@ -885,28 +977,40 @@ function playSound(type){
         osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.09);
       });
     },
-    mankoku: ()=>{
-      // 萬國驚天掌SE: 低いうなり音＋衝撃
-      [0, 0.06, 0.14].forEach((delay, i) => {
+    effectcard: ()=>{
+      // 効果カード出現SE: キラキラ上昇音
+      [0,0.07,0.14,0.21].forEach((delay,i)=>{
         const osc=AC.createOscillator(); const g=AC.createGain();
-        osc.type='sawtooth';
-        osc.frequency.setValueAtTime(120-i*20, t+delay);
-        osc.frequency.linearRampToValueAtTime(60-i*10, t+delay+0.18);
-        g.gain.setValueAtTime(0, t+delay);
-        g.gain.linearRampToValueAtTime(0.13*masterVolume, t+delay+0.02);
-        g.gain.exponentialRampToValueAtTime(0.001, t+delay+0.2);
-        const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=600;
-        osc.connect(lp); lp.connect(g); g.connect(AC.destination);
-        osc.start(t+delay); osc.stop(t+delay+0.22);
+        osc.type='sine';
+        osc.frequency.value=[523,659,784,1047][i];
+        g.gain.setValueAtTime(0,t+delay);
+        g.gain.linearRampToValueAtTime(0.12*masterVolume,t+delay+0.03);
+        g.gain.exponentialRampToValueAtTime(0.001,t+delay+0.25);
+        osc.connect(g); g.connect(AC.destination);
+        osc.start(t+delay); osc.stop(t+delay+0.26);
       });
-      // 衝撃ノイズ
-      const buf=AC.createBuffer(1,AC.sampleRate*0.08,AC.sampleRate);
-      const d=buf.getChannelData(0);
-      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2)*0.5;
-      const src=AC.createBufferSource(); src.buffer=buf;
-      const g2=AC.createGain(); g2.gain.setValueAtTime(0.15*masterVolume,t);
-      const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=200;
-      src.connect(hp); hp.connect(g2); g2.connect(AC.destination); src.start(t);
+    },
+    donguri: ()=>{
+      // どんぐりころころSE: 重いドスン＋ひっくり返る感触
+      // ドスン低音
+      const o1=AC.createOscillator(); const g1=AC.createGain();
+      o1.type='sine'; o1.frequency.setValueAtTime(180,t);
+      o1.frequency.exponentialRampToValueAtTime(40,t+0.3);
+      g1.gain.setValueAtTime(0.2*masterVolume,t);
+      g1.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+      o1.connect(g1); g1.connect(AC.destination); o1.start(t); o1.stop(t+0.36);
+      // 回転感のあるピッチ変動
+      [0.08,0.18,0.28].forEach((delay,i)=>{
+        const o=AC.createOscillator(); const g=AC.createGain();
+        o.type='triangle';
+        o.frequency.setValueAtTime(300+i*80,t+delay);
+        o.frequency.linearRampToValueAtTime(100+i*40,t+delay+0.12);
+        g.gain.setValueAtTime(0,t+delay);
+        g.gain.linearRampToValueAtTime(0.08*masterVolume,t+delay+0.02);
+        g.gain.exponentialRampToValueAtTime(0.001,t+delay+0.14);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t+delay); o.stop(t+delay+0.15);
+      });
     },
     win: ()=>{
       // 勝利: ファンファーレ
@@ -947,8 +1051,9 @@ function getHandSize(count)   { return getHandBlind(count) + getHandReveal(count
 let G          = null;
 let setupPhase = null;
 let act        = null;
-let insertAnim = null; // {pi, hi} 差し込みアニメ対象
-let swapAnim   = null; // {pi, hi} スワップアニメ対象
+let insertAnim  = null; // {pi, hi} 差し込みアニメ対象
+let swapAnim    = null; // {pi, hi} スワップアニメ対象
+let donguriAnim = null; // {pi, hi} どんぐりころころアニメ対象
 
 // ════════════════════════════════════════════
 //  HELPERS
@@ -1165,19 +1270,26 @@ function renderGame(){
             <button class="btn-sm accent" onclick="cancelAction()">キャンセル</button>
           </div>`;
         }
-        const canMankoku=isMyTurn&&act&&act.phase==='awaitMankoku';
-        const hasBonusReady=isMyTurn&&act&&act.phase==='awaitBonus';
-        if(hasBonusReady){
+        const inEffect=isMyTurn&&act&&(
+          act.phase==='awaitEffectCard'||
+          act.phase==='awaitDonguri'||
+          act.phase==='awaitLadyFirst'
+        );
+        if(act&&act.phase==='awaitEffectCard'&&isMyTurn){
           return `<div class="player-action-bar">
-            <button class="btn-sm" onclick="bonusContinue()">🎲 そのままもう1回</button>
-            <button class="btn-sm mankoku" onclick="startMankoku()">☯ 萬國驚天掌</button>
+            <span style="font-size:0.6rem;color:var(--accent);letter-spacing:1px;animation:blink 1s ease infinite;">✦ 効果カードを確認中…</span>
           </div>`;
         }
-        if(canMankoku){
+        if(act&&act.phase==='awaitDonguri'&&isMyTurn){
           return `<div class="player-action-bar">
-            <button class="btn-sm accent" onclick="cancelMankoku()">キャンセル</button>
-            <span style="font-size:0.6rem;color:#c040e0;letter-spacing:1px;">相手の表タイルを選択</span>
+            <button class="btn-sm accent" onclick="cancelEffect()">キャンセル</button>
+            <span style="font-size:0.6rem;color:#f0a030;letter-spacing:1px;">表タイルを選択</span>
           </div>`;
+        }
+        if(act&&act.phase==='awaitLadyFirst'&&isMyTurn){
+          const others=G.players.filter((_,i)=>i!==G.currentPlayer);
+          const btns=others.map(p=>`<button class="btn-sm" style="border-color:#e070f0;color:#e070f0;" onclick="executeLadyFirst('${p.name}')">${p.name}</button>`).join('');
+          return `<div class="player-action-bar">${btns}<button class="btn-sm accent" onclick="cancelEffect()">キャンセル</button></div>`;
         }
         return `<div class="player-action-bar">
           <button class="btn-sm" onclick="startMoveBlind()" ${canMoveBlind?'':'disabled'}>裏タイル移動</button>
@@ -1237,16 +1349,21 @@ function renderGame(){
           el.classList.add('just-swapped-in');
           swapAnim=null;
         }
+        // どんぐりころころアニメ（表→裏返しアニメ）
+        if(donguriAnim && donguriAnim.pi===pi && donguriAnim.hi===hi){
+          el.classList.add('donguri-flipping');
+          donguriAnim=null;
+        }
         // 差し込みアニメ（裏タイル移動）
         if(insertAnim && insertAnim.pi===pi && insertAnim.hi===hi){
           el.classList.add('just-inserted');
           insertAnim=null;
         }
-        // 萬國驚天掌: 対象タイルをハイライト
-        if(act&&act.phase==='awaitMankoku'&&h.revealed&&pi!==G.currentPlayer){
-          el.classList.add('mankoku-target');
+        // どんぐりころころ: 全員の表タイルをハイライト（自分含む）
+        if(act&&act.phase==='awaitDonguri'&&h.revealed){
+          el.classList.add('donguri-target');
           const _pi=pi,_hi=hi;
-          el.onclick=()=>executeMankoku(_pi,_hi);
+          el.onclick=()=>executeDonguri(_pi,_hi);
         }
         tileRow.appendChild(el);
       });
@@ -1358,12 +1475,15 @@ function renderGame(){
     }else if(act.phase==='awaitMoveInsert'){
       hint.textContent='差し込む位置の ↓ をクリック（赤ハッチは連番隣接のためNG）';
       ph.textContent='';
-    }else if(act.phase==='awaitBonus'){
-      hint.textContent=`${G.players[cp].name}: 連番ボーナス — 行動を選んでください`;
-      ph.textContent=act.hasMankoku?'💡 萬國驚天掌で相手の表タイルを山札に戻せます':'💡 相手に表タイルがないため萬國驚天掌は使えません';
-    }else if(act.phase==='awaitMankoku'){
-      hint.textContent='☯ 萬國驚天掌 — 相手の光るタイルをクリックして選択';
-      ph.textContent='💡 選んだタイルが山札に戻り、ランダムな裏タイルと交換されます';
+    }else if(act.phase==='awaitEffectCard'){
+      hint.textContent=`${G.players[cp].name}: 効果カードを引いた！`;
+      ph.textContent='💡 効果カードを確認して使用するか選んでください';
+    }else if(act.phase==='awaitDonguri'){
+      hint.textContent='🌰 どんぐりころころ — 光るタイルをクリックして選択';
+      ph.textContent='💡 選んだ表タイルが裏返されます（自分のタイルも選べます）';
+    }else if(act.phase==='awaitLadyFirst'){
+      hint.textContent='💃 レディーファースト — ターンを渡すプレイヤーを選択';
+      ph.textContent='💡 選んだプレイヤーのターンになります';
     }
   }else{
     hint.textContent='ゲーム終了';ph.textContent='';
@@ -1473,12 +1593,13 @@ function clickHandTile(pi,hi){
     if(!G.gameOver){
       if(bonus){
         playSound('bonus');
-        log(`🎉 連番！${player.name} がもう1回！— 萬國驚天掌 or そのままもう1回`,'highlight');
+        log(`🎉 連番！${player.name} が効果カードを引く！`,'highlight');
         bonusEffect(pi,hi);
-        // 相手に表タイルがあれば萬國驚天掌を選べる
-        const hasTarget=G.players.some((p,i)=>i!==G.currentPlayer&&p.hand.some(h=>h.revealed));
-        act={phase:'awaitBonus',playerIdx:G.currentPlayer,hasMankoku:hasTarget};
+        act={phase:'awaitEffectCard',playerIdx:G.currentPlayer};
         G.act=act;
+        syncToServer();
+        drawEffectCard();
+        return; // syncToServerはdrawEffectCard内で行わない（既に上でsync済み）
       } else {
         playSound('place');
         nextTurn();
@@ -1495,57 +1616,169 @@ function clickHandTile(pi,hi){
 }
 
 // ══════════════════════════════════════════════
-//  萬國驚天掌（マンコクキョウテンショウ）
+//  効果カードシステム
 // ══════════════════════════════════════════════
-function bonusContinue(){
-  if(!act||act.phase!=='awaitBonus')return;
-  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+const EFFECT_CARDS = [
+  {
+    id:'donguri',
+    name:'どんぐりころころ',
+    desc:'任意の表向きタイルを1枚裏返す。
+自分の手札も対象にできる。',
+    color:'#f0a030',
+  },
+  {
+    id:'mouikkai',
+    name:'もう一回！',
+    desc:'もう一度自分のターンになる。',
+    color:'#5ab4e0',
+  },
+  {
+    id:'mouikkai', // 2枚目
+    name:'もう一回！',
+    desc:'もう一度自分のターンになる。',
+    color:'#5ab4e0',
+  },
+  {
+    id:'tobashi',
+    name:'ひとつ飛ばしてべっぴんさん',
+    desc:'次のプレイヤーの手番をスキップする。',
+    color:'#7de87a',
+  },
+  {
+    id:'ladyfirst',
+    name:'レディーファースト',
+    desc:'自分以外のプレイヤーを1人選択。
+そのプレイヤーのターンになる。',
+    color:'#e070f0',
+  },
+];
+
+let drawnEffectCard = null; // 現在引いている効果カード
+
+function drawEffectCard(){
+  if(!act||act.phase!=='awaitEffectCard')return;
+  // ランダムに1枚引く
+  drawnEffectCard = EFFECT_CARDS[Math.floor(Math.random()*EFFECT_CARDS.length)];
+  act.effectCard = drawnEffectCard.id;
+  G.act = act;
+  // 自分のターンだけモーダルを開く
+  if(!myName||G.players[G.currentPlayer].name===myName){
+    openEffectCardModal(drawnEffectCard);
+  }
+}
+
+function openEffectCardModal(card){
+  const modal = document.getElementById('effectCardModal');
+  const inner = document.getElementById('effectCardInner');
+  document.getElementById('ecName').textContent = card.name;
+  document.getElementById('ecName').style.color = card.color;
+  document.getElementById('ecDesc').textContent = card.desc;
+  // ボタン生成
+  document.getElementById('ecButtons').innerHTML = `
+    <button class="ec-use-btn" style="border-color:${card.color};color:${card.color};background:${card.color}18;"
+      onclick="useEffectCard()">使用する</button>
+    <button class="ec-skip-btn" onclick="skipEffectCard()">スキップ（使わない）</button>
+  `;
+  inner.classList.remove('reveal');
+  void inner.offsetWidth; // reflow
+  inner.classList.add('reveal');
+  modal.classList.add('show');
+  playSound('effectcard');
+}
+
+function closeEffectCardModal(){
+  document.getElementById('effectCardModal').classList.remove('show');
+}
+
+function useEffectCard(){
+  closeEffectCardModal();
+  if(!drawnEffectCard)return;
+  const id = drawnEffectCard.id;
+  const cp = G.currentPlayer;
+  log(`✦ ${G.players[cp].name} が「${drawnEffectCard.name}」を使用！`,'highlight');
+  if(id==='mouikkai'){
+    // もう一回: ターンを進めずactをクリア
+    act=null;G.act=null;
+    log(`🔁 ${G.players[cp].name} のターンが続く！`,'highlight');
+    syncToServer();render();
+  } else if(id==='tobashi'){
+    // ひとつ飛ばし: 次プレイヤーをスキップ（2つ進む）
+    act=null;G.act=null;
+    const skipped=G.players[(cp+1)%G.players.length].name;
+    nextTurn(); nextTurn();
+    log(`⏭ ${skipped} をスキップ！`,'highlight');
+    syncToServer();render();
+  } else if(id==='donguri'){
+    act.phase='awaitDonguri';
+    G.act=act;
+    log(`🌰 どんぐりころころ — 裏返す表タイルを選んでください`,'highlight');
+    syncToServer();render();
+  } else if(id==='ladyfirst'){
+    act.phase='awaitLadyFirst';
+    G.act=act;
+    log(`💃 レディーファースト — ターンを渡すプレイヤーを選んでください`,'highlight');
+    syncToServer();render();
+  }
+  drawnEffectCard=null;
+}
+
+function skipEffectCard(){
+  closeEffectCardModal();
+  drawnEffectCard=null;
   act=null;G.act=null;
-  log(`${G.players[G.currentPlayer].name}: そのままもう1回！`);
-  syncToServer();render();
+  log(`${G.players[G.currentPlayer].name}: 効果カードをスキップ。ターン終了。`);
+  nextTurn();syncToServer();render();
 }
 
-function startMankoku(){
-  if(!act||act.phase!=='awaitBonus')return;
-  if(myName&&G.players[G.currentPlayer].name!==myName)return;
-  if(!act.hasMankoku){playSound('error');return;}
-  act.phase='awaitMankoku';
-  G.act=act;
-  log(`${G.players[G.currentPlayer].name}: ☯ 萬國驚天掌 — 相手の表タイルを選べ！`,'highlight');
-  syncToServer();render();
+function cancelEffect(){
+  if(!act)return;
+  if(act.phase==='awaitDonguri'||act.phase==='awaitLadyFirst'){
+    // キャンセル時はスキップ扱い
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  }
 }
 
-function cancelMankoku(){
-  if(!act||act.phase!=='awaitMankoku')return;
+// どんぐりころころ: 表タイルをクリック → 裏返す
+function executeDonguri(targetPi, targetHi){
+  if(!act||act.phase!=='awaitDonguri')return;
   if(myName&&G.players[G.currentPlayer].name!==myName)return;
-  act.phase='awaitBonus';
-  G.act=act;
-  syncToServer();render();
-}
-
-function executeMankoku(targetPi, targetHi){
-  if(!act||act.phase!=='awaitMankoku')return;
-  if(myName&&G.players[G.currentPlayer].name!==myName)return;
-  const attacker=G.players[G.currentPlayer];
   const defender=G.players[targetPi];
   if(!defender.hand[targetHi]||!defender.hand[targetHi].revealed){
     playSound('error');return;
   }
-  // 対象タイルを山札に戻す
-  const stolen=defender.hand[targetHi].tile;
-  G.pool.push(stolen);
-  // 山札をシャッフルして先頭から1枚を裏タイルとして差し込む
-  G.pool=shuffle(G.pool);
-  const newBlind=G.pool.splice(0,1)[0];
-  defender.hand[targetHi]={tile:newBlind,revealed:false};
-  // エフェクト用にアニメフラグ
-  swapAnim={pi:targetPi,hi:targetHi};
-  // SE: 低いホラー音
-  playSound('mankoku');
-  log(`☯ 萬國驚天掌！${attacker.name} が ${defender.name} の [${stolen.num}] を山札に戻した！`,'highlight');
+  const flipped=defender.hand[targetHi].tile;
+  // 裏返す（手札に残るが revealed=false に）
+  defender.hand[targetHi]={tile:flipped,revealed:false};
+  // 派手なアニメフラグ
+  donguriAnim={pi:targetPi,hi:targetHi};
+  playSound('donguri');
+  log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
   act=null;G.act=null;
-  // 萬國驚天掌後はターン終了
   nextTurn();syncToServer();render();
+}
+
+// レディーファースト: プレイヤー名で指名
+function executeLadyFirst(targetName){
+  if(!act||act.phase!=='awaitLadyFirst')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const targetIdx=G.players.findIndex(p=>p.name===targetName);
+  if(targetIdx<0){playSound('error');return;}
+  act=null;G.act=null;
+  // currentPlayerを直接targetIdxに設定（nextTurnの代わり）
+  G.currentPlayer=targetIdx;
+  // ラウンドカウントは回さない
+  log(`💃 レディーファースト！${targetName} のターンへ！`,'highlight');
+  syncToServer();render();
+}
+
+// sync受信時に効果カードモーダルを自動で開く（他のプレイヤーへの表示）
+function checkEffectCardSync(){
+  if(!G||!G.act)return;
+  if(G.act.phase==='awaitEffectCard'){
+    // 自分のターンでなければモーダルは不要（ログのみ）
+    return;
+  }
 }
 
 function cannotPlace(){
@@ -1905,9 +2138,21 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'beta 1.8.2';
+const CURRENT_VERSION = 'beta 2.0.0';
 
 const CHANGELOG = [
+  {
+    version: 'beta 2.0.0',
+    date: '2026-02-27',
+    items: [
+      { text: '効果カードシステム実装（連番達成でランダムに1枚引く）', highlight: true },
+      { text: 'どんぐりころころ: 任意の表タイルを裏返す（派手アニメ+SE）', highlight: true },
+      { text: 'もう一回！×2: もう一度自分のターン', highlight: true },
+      { text: 'ひとつ飛ばしてべっぴんさん: 次プレイヤーをスキップ', highlight: true },
+      { text: 'レディーファースト: 任意のプレイヤーにターンを渡す', highlight: true },
+      { text: '旧・萬國驚天掌・awaitBonusフロー廃止', },
+    ]
+  },
   {
     version: 'beta 1.8.2',
     date: '2026-02-27',
