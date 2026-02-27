@@ -165,6 +165,33 @@
   }
   #effectCardInner.reveal{animation:ec-reveal 0.45s cubic-bezier(0.22,1,0.36,1) forwards;}
 
+  /* 一か八か: コインフリップ演出 */
+  @keyframes coin-spin{
+    0%  {transform:rotateY(0deg);}
+    100%{transform:rotateY(1800deg);}
+  }
+  #coinFlipDisplay{
+    width:80px;height:80px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:2rem;margin:0 auto 16px;
+    border:3px solid var(--accent);
+    background:var(--panel);
+  }
+  #coinFlipDisplay.spinning{
+    animation:coin-spin 1.2s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  /* 一か八か: 山札/捨て場タイル選択ハイライト */
+  .tile.ikka-target{
+    border-color:#ffd700 !important;
+    box-shadow:0 0 14px rgba(255,215,0,0.8) !important;
+    cursor:pointer !important;
+    animation:ikka-pulse 0.6s ease infinite;
+  }
+  @keyframes ikka-pulse{
+    0%,100%{box-shadow:0 0 8px 2px rgba(255,215,0,0.6);}
+    50%{box-shadow:0 0 22px 6px rgba(255,215,0,0.3);}
+  }
+
   /* どんぐりころころ: 対象タイル選択 */
   .tile.donguri-target{
     border-color:#f0a030 !important;
@@ -529,7 +556,7 @@
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
     <div style="text-align:center;margin-top:12px;">
-      <span class="version-badge" onclick="openChangelog()">beta 2.0.1</span>
+      <span class="version-badge" onclick="openChangelog()">beta 2.0.2</span>
     </div>
   </div>
 </div>
@@ -596,7 +623,7 @@
         style="width:64px;accent-color:var(--accent);cursor:pointer;">
     </label>
     <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
-    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.1</span>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.0.2</span>
   </div>
 </header>
 
@@ -993,6 +1020,38 @@ function playSound(type){
         osc.start(t+delay); osc.stop(t+delay+0.26);
       });
     },
+    coin: ()=>{
+      // コインフリップSE: チャリン回転音
+      [0,0.05,0.1,0.15,0.2,0.25].forEach((d,i)=>{
+        const o=AC.createOscillator(); const g=AC.createGain();
+        o.type='sine';
+        o.frequency.value=1200-i*80;
+        g.gain.setValueAtTime(0,t+d);
+        g.gain.linearRampToValueAtTime(0.09*masterVolume,t+d+0.01);
+        g.gain.exponentialRampToValueAtTime(0.001,t+d+0.12);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t+d); o.stop(t+d+0.13);
+      });
+    },
+    omaeno: ()=>{
+      // お前のものは俺の物SE: ずっしり重い交換音
+      const o1=AC.createOscillator(); const g1=AC.createGain();
+      o1.type='sawtooth'; o1.frequency.setValueAtTime(200,t);
+      o1.frequency.linearRampToValueAtTime(80,t+0.4);
+      g1.gain.setValueAtTime(0.15*masterVolume,t);
+      g1.gain.exponentialRampToValueAtTime(0.001,t+0.45);
+      const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=800;
+      o1.connect(lp); lp.connect(g1); g1.connect(AC.destination);
+      o1.start(t); o1.stop(t+0.46);
+      // 2音目（入れ替わり感）
+      const o2=AC.createOscillator(); const g2=AC.createGain();
+      o2.type='sawtooth'; o2.frequency.setValueAtTime(80,t+0.2);
+      o2.frequency.linearRampToValueAtTime(200,t+0.5);
+      g2.gain.setValueAtTime(0.12*masterVolume,t+0.2);
+      g2.gain.exponentialRampToValueAtTime(0.001,t+0.55);
+      o2.connect(lp); lp.connect(g2); g2.connect(AC.destination);
+      o2.start(t+0.2); o2.stop(t+0.56);
+    },
     kousoku: ()=>{
       // 高速回転SE: 急上昇→急降下のピッチ＋ウィーン音
       const osc=AC.createOscillator(); const g=AC.createGain();
@@ -1313,6 +1372,12 @@ function renderGame(){
             <span style="font-size:0.6rem;color:#f0a030;letter-spacing:1px;">表タイルを選択</span>
           </div>`;
         }
+        if(act&&act.phase==='awaitIkkaPool'&&isMyTurn){
+          return `<div class="player-action-bar">
+            <button class="btn-sm accent" onclick="cancelEffect()">キャンセル</button>
+            <span style="font-size:0.6rem;color:#ffd700;letter-spacing:1px;">山札か捨て場の裏タイルを選択</span>
+          </div>`;
+        }
         if(act&&act.phase==='awaitLadyFirst'&&isMyTurn){
           const others=G.players.filter((_,i)=>i!==G.currentPlayer);
           const btns=others.map(p=>`<button class="btn-sm" style="border-color:#e070f0;color:#e070f0;" onclick="executeLadyFirst('${p.name}')">${p.name}</button>`).join('');
@@ -1429,12 +1494,12 @@ function renderGame(){
   poolCountBadge.textContent=`${G.pool.length} 枚`;
   const isMyTurnNow=!myName||G.players[G.currentPlayer].name===myName;
   const canDraw=isMyTurnNow&&!act&&!G.gameOver;
+  const canIkka=isMyTurnNow&&act&&act.phase==='awaitIkkaPool';
   G.pool.forEach((tile,pi2)=>{
     const el=document.createElement('div');
-    el.className=`tile face-down${canDraw?' pool-tile':''}`;
-    // Show index subtly for dev (remove in prod):
-    // el.dataset.idx=pi2;
+    el.className=`tile face-down${canDraw?' pool-tile':''}${canIkka?' ikka-target':''}`;
     if(canDraw)el.onclick=()=>flipPoolTile(pi2,el);
+    if(canIkka){const _i=pi2;el.onclick=()=>ikkaSelectPool(_i);}
     poolGrid.appendChild(el);
   });
 
@@ -1447,6 +1512,7 @@ function renderGame(){
     const wrapper=document.createElement('div');
     wrapper.className='discard-entry';
     const canTake=isMyTurnNow&&!act&&!G.gameOver;
+    const canIkkaDiscard=isMyTurnNow&&act&&act.phase==='awaitIkkaPool'&&!entry.faceUp;
     const tileEl=document.createElement('div');
     const showFace=entry.faceUp===true;
     // 表向きタイルが手札に置けるか確認
@@ -1460,7 +1526,7 @@ function renderGame(){
       });
     }
     const unplaceable=showFace&&canTake&&!placeable;
-    tileEl.className=`tile ${showFace?'face-up':'face-down'}${canTake&&!unplaceable?' pool-tile':''}${unplaceable?' unplaceable':''}`;
+    tileEl.className=`tile ${showFace?'face-up':'face-down'}${canTake&&!unplaceable?' pool-tile':''}${unplaceable?' unplaceable':''}${canIkkaDiscard?' ikka-target':''}`;
     tileEl.textContent=showFace?entry.tile.num:'';
     if(showFace&&entry.tile.rev)tileEl.title=`逆さ:${entry.tile.rev}`;
     if(entry.isNew){
@@ -1468,6 +1534,7 @@ function renderGame(){
       tileEl.appendChild(dot);
     }
     if(canTake&&!unplaceable)tileEl.onclick=()=>takeDiscard(realIdx);
+    if(canIkkaDiscard)tileEl.onclick=()=>ikkaSelectDiscard(realIdx);
     const who=document.createElement('div');who.className='discard-who';
     // 裏向きは誰が捨てたか表示（数字は伏せる）
     who.textContent=entry.discardedBy||'？';
@@ -1508,6 +1575,9 @@ function renderGame(){
     }else if(act.phase==='awaitDonguri'){
       hint.textContent='🌰 どんぐりころころ — 光るタイルをクリックして選択';
       ph.textContent='💡 選んだ表タイルが裏返されます（自分のタイルも選べます）';
+    }else if(act.phase==='awaitIkkaPool'){
+      hint.textContent='👑 一か八か — 金色に光るタイルをクリックして選択';
+      ph.textContent='💡 山札または捨て場の裏タイルを1枚選んで手札に表向きで配置できます';
     }else if(act.phase==='awaitLadyFirst'){
       hint.textContent='💃 レディーファースト — ターンを渡すプレイヤーを選択';
       ph.textContent='💡 選んだプレイヤーのターンになります';
@@ -1685,6 +1755,21 @@ const EFFECT_CARDS = [
     desc:'回転速度が速すぎて逆回転に見える（逆回転になる）',
     color:'#ff6060',
   },
+  {
+    id:'ikkahakka',
+    name:'一か八か',
+    desc:'コインフリップ。
+表→山札か捨て場の裏タイルを1枚表にできる。
+裏→自分の表タイルが1枚ランダムで裏返される。
+どちらもその後行動継続。',
+    color:'#ffd700',
+  },
+  {
+    id:'omaenomono',
+    name:'お前のものは俺の物',
+    desc:'ランダムなプレイヤーと手札をすべて交換する。',
+    color:'#ff8c00',
+  },
 ];
 
 let drawnEffectCard = null; // 現在引いている効果カード
@@ -1775,7 +1860,28 @@ function useEffectCard(){
     G.act=act;
     log(`💃 レディーファースト — ターンを渡すプレイヤーを選んでください`,'highlight');
     syncToServer();render();
-    return; // afterEffectCardUsedはexecuteLadyFirst内で呼ぶ
+    return;
+  } else if(id==='ikkahakka'){
+    // コインフリップ
+    const heads = Math.random()<0.5;
+    act.coinResult = heads ? 'heads' : 'tails';
+    G.act=act;
+    playSound('coin');
+    syncToServer();
+    showCoinFlip(heads);
+    return;
+  } else if(id==='omaenomono'){
+    // ランダムプレイヤーと手札全交換
+    const others=G.players.map((_,i)=>i).filter(i=>i!==cp);
+    const targetPi=others[Math.floor(Math.random()*others.length)];
+    const myHand=G.players[cp].hand;
+    G.players[cp].hand=G.players[targetPi].hand;
+    G.players[targetPi].hand=myHand;
+    log(`😈 お前のものは俺の物！${G.players[cp].name} と ${G.players[targetPi].name} の手札が入れ替わった！`,'highlight');
+    playSound('omaeno');
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+    return;
   }
   // 即時完了する効果はここでダブルボーナス判定
   afterEffectCardUsed();
@@ -1783,10 +1889,108 @@ function useEffectCard(){
 
 function cancelEffect(){
   if(!act)return;
-  if(act.phase==='awaitDonguri'||act.phase==='awaitLadyFirst'){
+  if(act.phase==='awaitDonguri'||act.phase==='awaitLadyFirst'||act.phase==='awaitIkkaPool'){
     act=null;G.act=null;
     nextTurn();syncToServer();render();
   }
+}
+
+// 一か八か: コインフリップ表示
+function showCoinFlip(heads){
+  const card = EFFECT_CARDS.find(c=>c.id==='ikkahakka');
+  const inner = document.getElementById('effectCardInner');
+  document.getElementById('ecName').textContent = card.name;
+  document.getElementById('ecName').style.color = card.color;
+  // コイン表示エリアを差し込む
+  document.getElementById('ecDesc').innerHTML =
+    `<div id="coinFlipDisplay" class="spinning">${heads?'👑':'💀'}</div>` +
+    `<div style="font-size:1.1rem;font-weight:bold;color:${heads?'#ffd700':'#ff6060'};letter-spacing:2px;margin-bottom:8px;">${heads?'表！HEADS':'裏！TAILS'}</div>` +
+    (heads
+      ? '山札または捨て場の裏タイルを1枚選んで表にできる。'
+      : '自分の表タイルがランダムで1枚裏返される…');
+  document.getElementById('ecButtons').innerHTML = heads
+    ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="startIkkaPool()">✦ タイルを選ぶ</button>`
+    : `<button class="ec-use-btn" style="border-color:#ff6060;color:#ff6060;background:#ff606018;" onclick="executeIkkaTails()">✦ 運命を受け入れる</button>`;
+  inner.classList.remove('reveal');
+  void inner.offsetWidth;
+  inner.classList.add('reveal');
+  document.getElementById('effectCardModal').classList.add('show');
+}
+
+// 表: 山札/捨て場から選ぶフェーズへ
+function startIkkaPool(){
+  closeEffectCardModal();
+  act.phase='awaitIkkaPool';
+  G.act=act;
+  log(`👑 表！山札か捨て場の裏タイルを1枚選んでください`,'highlight');
+  syncToServer();render();
+}
+
+// 裏: 自分の表タイルをランダムで1枚裏返す
+function executeIkkaTails(){
+  closeEffectCardModal();
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const revealedIdxs=player.hand.map((h,i)=>h.revealed?i:-1).filter(i=>i>=0);
+  if(revealedIdxs.length>0){
+    const hi=revealedIdxs[Math.floor(Math.random()*revealedIdxs.length)];
+    const flipped=player.hand[hi].tile;
+    player.hand[hi]={tile:flipped,revealed:false};
+    donguriAnim={pi:cp,hi};
+    playSound('donguri');
+    log(`💀 裏！${player.name} の [${flipped.num}] が裏返された！`,'highlight');
+  } else {
+    log(`💀 裏！でも表タイルがなかったので無効。`,'highlight');
+  }
+  // ターン継続（actをクリアするだけ）
+  act=null;G.act=null;
+  syncToServer();render();
+}
+
+// 一か八か: 山札タイルを選んで表にする
+function ikkaSelectPool(poolIdx){
+  if(!act||act.phase!=='awaitIkkaPool')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const tile=G.pool.splice(poolIdx,1)[0];
+  // 自分の裏タイルの1枚と交換（最初の裏タイル位置を表に）
+  const blindIdx=player.hand.findIndex(h=>!h.revealed);
+  if(blindIdx>=0){
+    // 元の裏タイルを山札に戻してtileを表にセット
+    G.pool.push(player.hand[blindIdx].tile);
+    player.hand[blindIdx]={tile,revealed:true};
+    swapAnim={pi:cp,hi:blindIdx};
+    log(`👑 一か八か成功！[${tile.num}] を手札に配置！`,'highlight');
+  } else {
+    G.pool.push(tile); // 裏タイルなければ戻す
+    log(`👑 裏タイルがないので無効。`,'highlight');
+  }
+  act=null;G.act=null;
+  syncToServer();render();
+}
+
+// 一か八か: 捨て場の裏タイルを選んで表にする
+function ikkaSelectDiscard(di){
+  if(!act||act.phase!=='awaitIkkaPool')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const entry=G.discard[di];
+  if(!entry||entry.faceUp){playSound('error');return;} // 表向きは選べない
+  G.discard.splice(di,1);
+  const blindIdx=player.hand.findIndex(h=>!h.revealed);
+  if(blindIdx>=0){
+    G.pool.push(player.hand[blindIdx].tile);
+    player.hand[blindIdx]={tile:entry.tile,revealed:true};
+    swapAnim={pi:cp,hi:blindIdx};
+    log(`👑 一か八か成功！捨て場から [${entry.tile.num}] を手札に配置！`,'highlight');
+  } else {
+    G.discard.push(entry);
+    log(`👑 裏タイルがないので無効。`,'highlight');
+  }
+  act=null;G.act=null;
+  syncToServer();render();
 }
 
 // どんぐりころころ: 表タイルをクリック → 裏返す
@@ -2224,9 +2428,17 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'beta 2.0.1';
+const CURRENT_VERSION = 'beta 2.0.2';
 
 const CHANGELOG = [
+  {
+    version: 'beta 2.0.2',
+    date: '2026-02-27',
+    items: [
+      { text: '一か八か: コインフリップ効果カード追加（表→山札/捨て場取得、裏→表タイル裏返し）', highlight: true },
+      { text: 'お前のものは俺の物: ランダムプレイヤーと手札全交換カード追加', highlight: true },
+    ]
+  },
   {
     version: 'beta 2.0.1',
     date: '2026-02-27',
