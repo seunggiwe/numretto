@@ -376,9 +376,12 @@
 const PARTYKIT_URL = 'https://numeretto-server.seunggiwe.partykit.dev';
 let ws = null;
 let myName = '';
-let myConnId = null; // サーバーから割り当てられるID（ホスト判定用）
+let myConnId = null;
 let amIHost = false;
 let currentRoomId = '';
+let intentionalClose = false; // 意図的切断フラグ
+let reconnectTimer = null;
+let heartbeatTimer = null;
 
 // 「接続する」ボタン
 function connectAction(){
@@ -397,6 +400,9 @@ function connectAction(){
 
 // 待合室から退出
 function leaveLobby(){
+  intentionalClose=true;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+  if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
   if(ws){ ws.close(); ws=null; }
   myName=''; currentRoomId=''; amIHost=false;
   document.getElementById('lobbyOverlay').classList.add('hidden');
@@ -406,12 +412,21 @@ function leaveLobby(){
 }
 
 function connectToRoom(roomId) {
-  if(ws){ ws.close(); ws=null; }
+  intentionalClose = false;
+  if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+  if(ws){ intentionalClose=true; ws.close(); ws=null; }
+  intentionalClose = false;
   ws = new WebSocket(`${PARTYKIT_URL}/party/${roomId}`);
 
   ws.onopen = () => {
-    // 名前を送って参加登録
     ws.send(JSON.stringify({ type: 'join', name: myName }));
+    // Heartbeat: 25秒ごとにpingを送ってアイドル切断を防ぐ
+    heartbeatTimer = setInterval(()=>{
+      if(ws && ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 25000);
   };
 
   ws.onmessage = (e) => {
@@ -424,11 +439,32 @@ function connectToRoom(roomId) {
 
     // ゲーム開始 / アクション同期
     if(msg.type === 'sync'){
+      const prevAct = act;
+      const prevPlayer = G ? G.currentPlayer : -1;
       G = msg.G;
-      // playerSetupsが残っていれば準備中
       const inSetup = G.playerSetups && G.playerSetups.some(s=>!s.done);
       setupPhase = inSetup ? true : null;
-      act = G.act || null; // actをGから復元（めくり中状態を保持）
+      const newAct = G.act || null;
+
+      // 他人の操作によるSE判定（自分の操作は既に鳴らしている）
+      const isOtherPlayer = myName && G.players[G.currentPlayer] && G.players[G.currentPlayer].name !== myName;
+      if(isOtherPlayer){
+        if(!prevAct && newAct && newAct.phase==='awaitSwap') playSound('draw');
+        else if(prevAct && !newAct && prevPlayer===G.currentPlayer) playSound('place');
+        else if(prevAct && !newAct && prevPlayer!==G.currentPlayer) playSound('place');
+        else if(!prevAct && !newAct && prevPlayer !== G.currentPlayer) {/* ターン変化 */}
+      }
+
+      act = newAct;
+
+      // 自分のターン開始SE（ターンが自分に切り替わった瞬間）
+      const myPi = myName ? G.players.findIndex(p=>p.name===myName) : -1;
+      if(myPi>=0 && !inSetup && !G.gameOver){
+        if(prevPlayer !== G.currentPlayer && G.currentPlayer === myPi){
+          playSound('myturn');
+        }
+      }
+
       document.getElementById('titleOverlay').classList.add('hidden');
       document.getElementById('lobbyOverlay').classList.add('hidden');
       document.getElementById('centerZone').style.display = inSetup ? 'none' : '';
@@ -454,7 +490,15 @@ function connectToRoom(roomId) {
     document.getElementById('lobbyOverlay').classList.add('hidden');
   };
   ws.onclose = () => {
-    if(G) log('サーバーから切断されました。','error');
+    if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+    if(intentionalClose) return; // leaveLobby等の意図的切断は無視
+    // ゲーム中または待合室中なら自動再接続
+    if(myName && currentRoomId){
+      log('接続が切れました。再接続中…','error');
+      reconnectTimer = setTimeout(()=>{
+        connectToRoom(currentRoomId);
+      }, 3000);
+    }
   };
 }
 
@@ -630,6 +674,17 @@ function playSound(type){
         g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.15,st+0.02);
         g.gain.linearRampToValueAtTime(0,st+0.15);
         osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.16);
+      });
+    },
+    myturn: ()=>{
+      // 自分のターン開始: 短い上昇2音
+      [[523,0],[784,0.1]].forEach(([freq,delay])=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sine'; osc.frequency.value=freq;
+        const st=t+delay;
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.2,st+0.015);
+        g.gain.linearRampToValueAtTime(0,st+0.1);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.11);
       });
     },
   };
