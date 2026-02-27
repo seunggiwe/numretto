@@ -235,7 +235,7 @@
   .log-entry .ts{color:#333;margin-right:8px;}
 
   /* ── OVERLAYS ── */
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.87);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.87);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);overflow-y:auto;}
   .overlay.hidden{display:none;}
   .overlay-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:40px 50px;text-align:center;max-width:480px;width:90%;}
   .overlay-card h1{font-family:'Bebas Neue',cursive;font-size:3.5rem;letter-spacing:6px;color:var(--accent);margin-bottom:8px;}
@@ -434,14 +434,10 @@
   </div>
 </div>
 
-<!-- WIN -->
-<div class="overlay hidden" id="winOverlay">
-  <div class="overlay-card">
-    <h1>COMPLETE!</h1>
-    <div id="winMessage" class="subtitle"></div>
-    <p id="winDesc"></p>
-    <button class="btn primary" id="btnRematch" onclick="rematch()" style="width:100%;padding:14px;font-size:0.85rem;margin-bottom:8px;">REMATCH →</button>
-    <button class="btn" onclick="location.reload()" style="width:100%;padding:10px;font-size:0.72rem;">退出してタイトルへ</button>
+<!-- RESULT -->
+<div class="overlay hidden" id="resultOverlay">
+  <div class="overlay-card" style="max-width:540px;padding:28px 32px;">
+    <div id="resultContent"></div>
   </div>
 </div>
 
@@ -643,6 +639,12 @@ function connectToRoom(roomId) {
       document.getElementById('actionPanel').style.display = inSetup ? 'none' : '';
       document.getElementById('phaseHint').style.display = '';
       document.getElementById('hdrPool').textContent = `ROOM: ${currentRoomId}`;
+      // リザルト同期：G.resultがあれば全員にリザルト画面を表示
+      if(G.result){
+        openResult();
+      } else {
+        document.getElementById('resultOverlay').classList.add('hidden');
+      }
       render();
     }
 
@@ -739,7 +741,7 @@ function hostStartGame(){
     const revealTiles = nums.slice(idx, idx+HAND_REVEAL).map(makeTile);
     idx += HAND_REVEAL;
     revealTiles.sort((a,b)=>a.num-b.num);
-    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0,progressHistory:[[0,0]]});
   }
   // playerSetups: 全員同時に準備フェーズを進める
   const playerSetups = players.map(()=>({
@@ -1367,6 +1369,10 @@ function clickHandTile(pi,hi){
     const bonus=isConsecutive(player.hand,hi);
     log(`${player.name}: [${useNum}] を配置。`,bonus?'highlight':'');
     act=null;G.act=null;player.turns++;
+    // 達成進捗を記録（[ターン数, 達成枚数]）
+    const revealedNow=player.hand.filter(h=>h.revealed).length;
+    if(!player.progressHistory) player.progressHistory=[[0,0]];
+    player.progressHistory.push([player.turns, revealedNow]);
     checkWin(G.currentPlayer);
     if(!G.gameOver){
       if(bonus){
@@ -1487,17 +1493,135 @@ function checkWin(pi){
   showWin(pi);
 }
 function showWin(pi){
-  const pl=G.players[pi];
-  document.getElementById('winMessage').textContent=`— ${pl.name} WINS —`;
-  document.getElementById('winDesc').textContent=`${pl.name} が先に全タイルを昇順で表向きにした！`;
-  // リマッチボタン：ホストのみ表示
-  const btnR=document.getElementById('btnRematch');
-  if(btnR) btnR.style.display=amIHost?'':'none';
-  document.getElementById('winOverlay').classList.remove('hidden');
+  // G.result を生成（全員のスナップショット）
+  G.result = {
+    winnerIdx: pi,
+    players: G.players.map(p=>({
+      name: p.name,
+      turns: p.turns,
+      revealed: p.hand.filter(h=>h.revealed).length,
+      handSize: G.handSize,
+      progressHistory: p.progressHistory || [[0,0]],
+    })),
+    votes: {}, // {playerName: 'rematch'|'leave'}
+  };
+  syncToServer();
+  openResult();
+}
+
+function openResult(){
+  if(!G||!G.result) return;
+  const r = G.result;
+  const winner = r.players[r.winnerIdx];
+  const myVote = r.votes[myName] || null;
+
+  // ── グラフ描画 ──
+  const W=460, H=200, PAD={top:20,right:20,bottom:36,left:36};
+  const gw=W-PAD.left-PAD.right, gh=H-PAD.top-PAD.bottom;
+  const maxTurns = Math.max(...r.players.map(p=>p.turns), 1);
+  const maxRevealed = Math.max(...r.players.map(p=>p.handSize), 1);
+  const colors = ['#e8d44d','#e05c4b','#5ab4e0','#7de87a','#e0a05c','#c05ae0'];
+
+  const toX = t => PAD.left + (t/maxTurns)*gw;
+  const toY = v => PAD.top + gh - (v/maxRevealed)*gh;
+
+  // 軸
+  let svgLines = `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top+gh}" stroke="#333" stroke-width="1"/>`;
+  svgLines += `<line x1="${PAD.left}" y1="${PAD.top+gh}" x2="${PAD.left+gw}" y2="${PAD.top+gh}" stroke="#333" stroke-width="1"/>`;
+  // Y軸グリッド
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const y=toY(f*maxRevealed);
+    svgLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+gw}" y2="${y}" stroke="#222" stroke-width="1" stroke-dasharray="3,3"/>`;
+    svgLines += `<text x="${PAD.left-4}" y="${y+4}" text-anchor="end" fill="#444" font-size="9">${Math.round(f*maxRevealed)}</text>`;
+  });
+  // X軸ラベル
+  svgLines += `<text x="${PAD.left}" y="${H-4}" fill="#444" font-size="9">0</text>`;
+  svgLines += `<text x="${PAD.left+gw}" y="${H-4}" text-anchor="end" fill="#444" font-size="9">${maxTurns}</text>`;
+  svgLines += `<text x="${W/2}" y="${H}" text-anchor="middle" fill="#444" font-size="9">TURNS</text>`;
+  svgLines += `<text x="8" y="${H/2}" text-anchor="middle" fill="#444" font-size="9" transform="rotate(-90,8,${H/2})">REVEALED</text>`;
+
+  // 各プレイヤーの折れ線
+  let svgPaths = '';
+  r.players.forEach((p,i)=>{
+    const hist = p.progressHistory.length>1 ? p.progressHistory : [[0,0],[p.turns,p.revealed]];
+    const pts = hist.map(([t,v])=>`${toX(t)},${toY(v)}`).join(' ');
+    const col = colors[i%colors.length];
+    svgPaths += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    // 終点ドット
+    const last = hist[hist.length-1];
+    svgPaths += `<circle cx="${toX(last[0])}" cy="${toY(last[1])}" r="4" fill="${col}"/>`;
+    // 勝者は星マーク
+    if(i===r.winnerIdx){
+      svgPaths += `<text x="${toX(last[0])+6}" y="${toY(last[1])-4}" fill="${col}" font-size="10">★</text>`;
+    }
+  });
+
+  // 凡例
+  let legend = r.players.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;font-size:0.62rem;color:#aaa;">
+      <span style="width:14px;height:3px;background:${colors[i%colors.length]};border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+      <span style="${i===r.winnerIdx?'color:#e8d44d;font-weight:700;':''}">${p.name}${i===r.winnerIdx?' ★':''}</span>
+      <span style="color:#555;margin-left:auto;">${p.turns}T · ${p.revealed}/${p.handSize}</span>
+    </div>`).join('');
+
+  // 投票状況
+  const totalPlayers = r.players.length;
+  const voteCount = Object.keys(r.votes).length;
+  const rematchCount = Object.values(r.votes).filter(v=>v==='rematch').length;
+  let voteStatus = r.players.map(p=>{
+    const v = r.votes[p.name];
+    const icon = v==='rematch'?'🔁':v==='leave'?'🚪':'…';
+    return `<span style="font-size:0.65rem;color:${v?'#aaa':'#444'};margin-right:10px;">${icon} ${p.name}</span>`;
+  }).join('');
+
+  document.getElementById('resultContent').innerHTML = `
+    <div style="font-family:'Bebas Neue',cursive;font-size:2.2rem;letter-spacing:5px;color:#e8d44d;margin-bottom:4px;">COMPLETE!</div>
+    <div style="font-size:0.8rem;color:#aaa;margin-bottom:20px;letter-spacing:2px;">— ${winner.name} WINS —</div>
+
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;border:1px solid #1e1e1e;border-radius:4px;background:#0a0a0a;display:block;margin-bottom:10px;">
+      ${svgLines}${svgPaths}
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px;">${legend}</div>
+
+    <div style="border-top:1px solid #1e1e1e;padding-top:16px;">
+      ${myVote ? `
+        <div style="font-size:0.65rem;color:#555;text-align:center;margin-bottom:12px;">投票済み: ${myVote==='rematch'?'🔁 再戦':'🚪 退出'}</div>
+      ` : `
+        <div style="font-size:0.62rem;color:#555;text-align:center;margin-bottom:10px;letter-spacing:1px;">VOTE</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn primary" onclick="voteResult('rematch')" style="flex:1;padding:11px;font-size:0.75rem;letter-spacing:2px;">🔁 再戦</button>
+          <button class="btn" onclick="voteResult('leave')" style="flex:1;padding:11px;font-size:0.72rem;border-color:#444;color:#666;">🚪 退出</button>
+        </div>
+      `}
+      <div style="margin-top:10px;font-size:0.6rem;color:#444;text-align:center;">${voteCount}/${totalPlayers} 投票済み${rematchCount>0?' · 再戦 '+rematchCount+'票':''}</div>
+      <div style="margin-top:4px;">${voteStatus}</div>
+    </div>
+  `;
+
+  document.getElementById('resultOverlay').classList.remove('hidden');
   // 勝利パーティクル
-  setTimeout(()=>spawnParticles(window.innerWidth/2, window.innerHeight/3, 40),200);
-  setTimeout(()=>spawnParticles(window.innerWidth/3, window.innerHeight/2, 30),500);
-  setTimeout(()=>spawnParticles(window.innerWidth*2/3, window.innerHeight/2, 30),700);
+  setTimeout(()=>spawnParticles(window.innerWidth/2, window.innerHeight/3, 40),300);
+  setTimeout(()=>spawnParticles(window.innerWidth/3, window.innerHeight/2, 25),600);
+  setTimeout(()=>spawnParticles(window.innerWidth*2/3, window.innerHeight/2, 25),800);
+}
+
+function voteResult(vote){
+  if(!G||!G.result) return;
+  G.result.votes[myName] = vote;
+  syncToServer();
+  openResult(); // 投票状況を再描画
+  // 全員再戦ならホストが自動rematch
+  const r = G.result;
+  const allVoted = r.players.every(p=>r.votes[p.name]);
+  const allRematch = r.players.every(p=>r.votes[p.name]==='rematch');
+  if(allVoted && allRematch && amIHost){
+    setTimeout(()=>rematch(), 600);
+  } else if(allVoted && !allRematch){
+    // 退出者がいる場合はロビーへ
+    if(r.votes[myName]==='leave'){
+      setTimeout(()=>{ location.reload(); }, 600);
+    }
+  }
 }
 
 // リマッチ：同じメンバーでホストが即再戦
@@ -1517,12 +1641,12 @@ function rematch(){
     const revealTiles=nums.slice(idx,idx+HAND_REVEAL).map(makeTile);
     idx+=HAND_REVEAL;
     revealTiles.sort((a,b)=>a.num-b.num);
-    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0});
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0,progressHistory:[[0,0]]});
   }
   const playerSetups=players.map(()=>({currentRevealIdx:0,selectedInHand:false,useRev:false,done:false}));
   act=null;
   G={players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL,playerSetups};
-  document.getElementById('winOverlay').classList.add('hidden');
+  document.getElementById('resultOverlay').classList.add('hidden');
   ws.send(JSON.stringify({type:'start',G}));
 }
 function flashTile(pi,hi){
@@ -1590,12 +1714,21 @@ function insertPlayerZone(div){
 // ════════════════════════════════════════════
 //  VERSION & CHANGELOG
 // ════════════════════════════════════════════
-const CURRENT_VERSION = 'v1.7.0';
+const CURRENT_VERSION = 'v1.8.0';
 
 const CHANGELOG = [
   {
+    version: 'v1.8.0',
+    date: '2026-02-27',
+    items: [
+      { text: 'リザルト画面：進捗グラフ・全員投票システム', highlight: true },
+      { text: '再戦/退出の投票が全員にリアルタイム同期' },
+      { text: 'バージョン日付を YYYY-MM-DD 形式に変更' },
+    ]
+  },
+  {
     version: 'v1.7.0',
-    date: '2025-02',
+    date: '2026-02-27',
     items: [
       { text: 'タイル差し込み・交換アニメーション追加', highlight: true },
       { text: 'ロゴ配色変更（NUM黄 / LETTO赤）', highlight: true },
@@ -1605,7 +1738,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.6.0',
-    date: '2025-02',
+    date: '2026-02-26',
     items: [
       { text: '置ける位置をグリーンでハイライト表示', highlight: true },
       { text: '連番達成時に発光＋パーティクルエフェクト', highlight: true },
@@ -1616,7 +1749,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.5.0',
-    date: '2025-02',
+    date: '2026-02-26',
     items: [
       { text: '他プレイヤーの操作SEを全員に配信', highlight: true },
       { text: '自分のターン開始専用SE追加', highlight: true },
@@ -1627,7 +1760,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.4.0',
-    date: '2025-02',
+    date: '2026-02-25',
     items: [
       { text: '準備フェーズを全員同時進行に変更', highlight: true },
       { text: '準備フェーズの昇順チェック修正' },
@@ -1637,7 +1770,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.3.0',
-    date: '2025-02',
+    date: '2026-02-25',
     items: [
       { text: 'WebAudio SEエンジン追加（外部ファイル不要）', highlight: true },
       { text: 'めくる・配置・連番・捨てる・エラー・勝利のSE' },
@@ -1646,7 +1779,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.2.0',
-    date: '2025-02',
+    date: '2026-02-24',
     items: [
       { text: 'G.actをサーバー経由で同期（めくり状態が全員に見える）', highlight: true },
       { text: 'WebSocketエラー/クローズハンドラ整理' },
@@ -1654,7 +1787,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.1.0',
-    date: '2025-02',
+    date: '2026-02-24',
     items: [
       { text: 'オンライン専用マルチプレイヤー化（PartyKit）', highlight: true },
       { text: 'ロビー/待合室システム', highlight: true },
@@ -1664,7 +1797,7 @@ const CHANGELOG = [
   },
   {
     version: 'v1.0.0',
-    date: '2025-01',
+    date: '2026-02-23',
     items: [
       { text: 'ローカルホットシート版リリース', highlight: true },
       { text: '2〜6人対応、裏タイル・連番ボーナス・手番交代' },
