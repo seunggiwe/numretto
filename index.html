@@ -2477,7 +2477,7 @@ function executeDonguri(targetPi, targetHi){
     syncToServer(); // 手札変更済みの状態をsync
     donguriAnim={pi:targetPi,hi:targetHi};
     playSound('donguri');
-    log(\`🌰 どんぐりころころ！\${G.players[G.currentPlayer].name} が \${defender.name} の [\${flipped.num}] を裏返した！\`,'highlight');
+    log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
     render();
     setTimeout(()=>{
       act=null;G.act=null;
