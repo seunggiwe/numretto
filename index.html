@@ -488,7 +488,17 @@ requestAnimationFrame(staggerIn);
 let resizeTimer = null;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(()=>{ location.reload(); }, 400);
+  // リサイズ開始でフェードアウト
+  document.body.style.transition = 'opacity 0.25s';
+  document.body.style.opacity = '0';
+  resizeTimer = setTimeout(()=>{
+    build();
+    requestAnimationFrame(()=>{
+      staggerIn();
+      document.body.style.transition = 'opacity 0.4s';
+      document.body.style.opacity = '1';
+    });
+  }, 250);
 });
 </script>
 </body>
