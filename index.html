@@ -17,7 +17,7 @@
 <meta name="twitter:title" content="NUMLETTO — 数字並べ対戦ゲーム">
 <meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
 <meta name="twitter:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@400;600&family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:        #0a0a0a;
@@ -109,7 +109,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 #mo.show{opacity:1;pointer-events:auto;}
 #md{
   background:#161616;border:1px solid #2a2a2a;border-radius:8px;
-  padding:40px 50px;text-align:center;max-width:420px;width:90%;
+  padding:32px 36px;text-align:center;max-width:320px;width:90%;
   transform:translateY(16px) scale(0.97);
   transition:transform 0.28s cubic-bezier(0.22,1,0.36,1);
 }
@@ -172,7 +172,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 
 <!-- completto準拠モーダル -->
 <div id="mo">
-  <div id="md">
+  <div class="overlay-card" style="max-width:420px;padding-top:36px;">
     <div class="numletto-logo">
       <div class="logo-tiles">
         <span class="logo-tile face-up">7</span>
@@ -184,23 +184,24 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
       <h1 class="logo-title">NUMLETTO</h1>
       <div class="logo-sub-mo">数字並べ対戦ゲーム</div>
     </div>
-    <p style="margin-bottom:20px;color:#555;font-size:0.72rem;line-height:1.7;">1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
-    <div class="setup-options">
+    <p style="margin-bottom:24px;color:var(--muted);font-size:0.72rem;line-height:1.7;">1〜100のタイルを昇順に並べろ。<br>戦略と運が交差する数字の格闘技。</p>
+    <div class="setup-options" style="gap:12px;">
       <div class="setup-row">
         <label>名 前</label>
-        <input type="text" id="myNameInput" placeholder="あなたの名前" maxlength="12" autocomplete="off"
+        <input type="text" id="myNameInput" placeholder="あなたの名前" maxlength="12"
+          style="font-size:0.85rem;padding:10px 12px;"
           onkeydown="if(event.key==='Enter')connectAction()">
       </div>
       <div class="setup-row">
         <label>合言葉</label>
-        <input type="text" id="roomIdInput" placeholder="ルーム合言葉" autocomplete="off"
-          style="text-transform:uppercase"
+        <input type="text" id="roomIdInput" placeholder="ルーム合言葉"
+          style="text-transform:uppercase;font-size:0.85rem;padding:10px 12px;"
           onkeydown="if(event.key==='Enter')connectAction()">
       </div>
     </div>
-    <p style="font-size:0.6rem;color:#555;margin:10px 0 16px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
-    <button id="btnConnect" onclick="connectAction()"
-      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;background:rgba(232,212,77,0.08);border:1px solid #e8d44d;color:#e8d44d;border-radius:3px;cursor:pointer;font-family:'Bebas Neue',cursive;transition:background 0.15s;">ENTER ROOM</button>
+    <p style="font-size:0.6rem;color:var(--muted);margin:10px 0 16px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
+    <button class="btn primary" id="btnConnect" onclick="connectAction()"
+      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:#e05c4b;margin-top:8px;min-height:16px;"></p>
   </div>
 </div>
