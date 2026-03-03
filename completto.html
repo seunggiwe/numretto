@@ -7,7 +7,7 @@
 
 <!-- OGP -->
 <meta property="og:title" content="NUMLETTO — 数字並べ対戦ゲーム">
-<meta property="og:description" content="1〜100のタイルを昇順に並べろ。最大4人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
+<meta property="og:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://seunggiwe.github.io/numeretto/">
 <meta property="og:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
@@ -16,9 +16,10 @@
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="NUMLETTO — 数字並べ対戦ゲーム">
-<meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大4人のリアルタイム対戦。インストール不要。">
+<meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
 <meta name="twitter:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
-<meta name="description" content="1〜100のタイルを昇順に並べろ。最大4人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
+<meta name="description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
+<meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
 
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -978,8 +979,9 @@ let reconnectAttempt = 0; // バックオフ用カウンタ
     const inp = document.getElementById('myNameInput');
     if(inp) inp.value = name;
   }
-  // 両方揃っていたら自動接続
+  // 両方揃っていたら自動接続（titleOverlayを即非表示）
   if(room && name){
+    document.getElementById('titleOverlay').classList.add('hidden');
     setTimeout(()=>connectAction(), 200);
   }
 })();
