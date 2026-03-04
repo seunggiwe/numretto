@@ -30,10 +30,10 @@
   --text:      #e8e8e8;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;height:100dvh;overflow:hidden;}
+body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;height:100dvh;overflow:hidden;}
 
 /* ── フィールド ── */
-#field{position:fixed;inset:0;z-index:0;}
+#field{position:fixed;top:0;left:0;z-index:0;transform-origin:0 0;}
 
 .cw{
   position:absolute;
@@ -176,8 +176,10 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 <body>
 <div id="grain"></div>
 <div id="field"></div>
-
-<!-- completto準拠モーダル -->
+<div id="ui-sub">
+  <div class="logo-sub">数字を並べる。ただそれだけ。</div>
+</div>
+<div id="ui-persons"></div>
 <div id="mo">
   <div class="overlay-card" style="max-width:420px;padding-top:36px;">
     <div class="numletto-logo">
@@ -210,10 +212,6 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
       style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:#e05c4b;margin-top:8px;min-height:16px;"></p>
   </div>
-</div>
-
-<div id="ui-sub">
-  <div class="logo-sub">数字を並べる。ただそれだけ。</div>
 </div>
 
 
@@ -435,52 +433,37 @@ function build(){
 
   const vw=window.innerWidth, vh=window.innerHeight;
   const gap=4;
-  const ratio = vw / vh;
+  const margin=12;
 
-  // ── アスペクト比に応じてカードサイズを決定 ──
-  // 列数は奇数固定、カード幅は画面幅から逆算
-  let cols;
-  if(ratio >= 2.0)       cols = 19; // 超横長
-  else if(ratio >= 1.6)  cols = 17; // 横長
-  else if(ratio >= 1.3)  cols = 15; // 標準横長
-  else if(ratio >= 1.0)  cols = 13; // 正方形寄り
-  else if(ratio >= 0.7)  cols = 11; // 縦長（タブレット）
-  else                   cols = 9;  // 縦長（スマホ）
+  // ── カードサイズ固定（アスペクト比4:5） ──
+  const BASE_W = 68, BASE_H = 85; // px
+  const w = BASE_W, h = BASE_H;
 
-  const w = Math.floor((vw + gap) / cols - gap);
-  const h = Math.round(w / 0.8); // 4:5
+  // 列・行数を画面サイズから逆算（偶数に丸める：8文字タイトルを左右対称に配置するため）
+  let cols = Math.floor((vw - margin*2 + gap) / (w + gap));
+  if(cols % 2 !== 0) cols--;
+  if(cols < 10) cols = 10;
 
-  const rows=Math.ceil(vh/(h+gap))+3;
-  const totalW=cols*(w+gap)-gap;
-  const totalH=rows*(h+gap)-gap;
-  const ox=(vw-totalW)/2;
-  const oy=(vh-totalH)/2;
+  let rows = Math.floor((vh - margin*2 + gap) / (h + gap));
+  if(rows % 2 === 0) rows--;
+  if(rows < 5) rows = 5;
+  rows -= 1;
 
-  // ── タイトル行・GOカード行の決定 ──
-  const titleRow=Math.floor(rows/2)-1;
-  const goRow=titleRow+1;
-  const goCol=Math.floor(cols/2);  // 奇数列なので必ず整数の中央
+  // グリッド全体を画面中央に配置
+  const totalW = cols*(w+gap)-gap;
+  const totalH = rows*(h+gap)-gap;
+  const ox = Math.round((vw - totalW) / 2);
+  const oy = Math.round((vh - totalH) / 2) - (h + gap);
+  const ox2 = ox; // タイトルは常にgrid中央列に配置するのでシフト不要
 
-  // LETTERS.length=8(偶数): LとEの境界をページ中心線に合わせる
-  // 中心線 = vw/2
-  // L(index3)の右端 = titleStartCol*w + 4*(w+gap) - gap/2 = 中心線
-  // → titleStartCol = (vw/2 + gap/2 - 4*(w+gap)) / (w+gap) だが
-  // グリッドのoxオフセットがあるので、列インデックスで計算:
-  // LとEの「境界」はlCol右端とeCol左端の間 = ox + eCol*(w+gap) - gap/2 = vw/2
-  // → eCol*(w+gap) = vw/2 - ox + gap/2
-  // oxはグリッド全体の左オフセット。eCol = lCol+1 = titleStartCol+4
-  // titleStartCol = goCol - 4 のままにして、代わりにグリッド全体のoxを
-  // L/E境界が中央になるようにずらす
-  const titleStartCol=goCol-4;
-  const lCol=titleStartCol+3; // L
-  const eCol=titleStartCol+4; // E
-  // L/E境界のx座標（ずらし前） = ox + eCol*(w+gap) - gap/2
-  // これを vw/2 にしたいので、oxを補正
-  const rawOx=ox;
-  const leBoundaryX = rawOx + eCol*(w+gap) - gap/2;
-  const centerX = vw/2;
-  const oxShift = centerX - leBoundaryX;
-  const ox2 = rawOx + oxShift; // 補正後のox
+  // ── タイトル行・GOカード行の決定（常に画面中央） ──
+  const titleRow = Math.floor(rows / 2) - 1;
+  const goRow    = titleRow + 1;
+  // 偶数列: 中央は cols/2-1 と cols/2 の境界 → タイトル8文字を cols/2-4 〜 cols/2+3 に配置
+  const titleStartCol = cols / 2 - 4;
+  const lCol = titleStartCol + 3; // L
+  const eCol = titleStartCol + 4; // E
+  const goCol = titleStartCol + 4; // PLAYボタン基準列（E列）
 
   const nums=shuffle(Array.from({length:100},(_,i)=>i+1));
   let ni=0;
@@ -563,15 +546,20 @@ function build(){
   }
 
   // サブUI位置: タイトル行の上
-  // 「数字を並べろ」: タイトルカード行の上
   const titleY = oy + titleRow*(h+gap);
   const uiSub = document.getElementById('ui-sub');
-  uiSub.style.cssText = `left:50%;transform:translateX(-50%);top:${Math.max(8, titleY-36)}px;`;
+  const uiSubTop = Math.max(8, titleY-36);
+  uiSub.style.cssText = `position:absolute;left:50%;transform:translateX(-50%);top:${uiSubTop}px;`;
+  uiSub.dataset.origTop = uiSubTop;
 
   // 人数アイコン: PLAYボタンの下
   const playBtnY = oy + goRow*(h+gap) + h/2;
   const uiPersons = document.getElementById('ui-persons');
-  uiPersons.style.cssText = `left:50%;transform:translateX(-50%);top:${playBtnY + 36}px;`;
+  const uiPersonsTop = playBtnY + 36;
+  uiPersons.style.cssText = `position:absolute;left:50%;transform:translateX(-50%);top:${uiPersonsTop}px;`;
+  uiPersons.dataset.origTop = uiPersonsTop;
+
+
 }
 
 // 入場アニメ（タイトルカード除く）
@@ -653,17 +641,10 @@ requestAnimationFrame(staggerIn);
 let resizeTimer = null;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeTimer);
-  // リサイズ開始でフェードアウト
-  document.body.style.transition = 'opacity 0.25s';
-  document.body.style.opacity = '0';
   resizeTimer = setTimeout(()=>{
     build();
-    requestAnimationFrame(()=>{
-      staggerIn();
-      document.body.style.transition = 'opacity 0.4s';
-      document.body.style.opacity = '1';
-    });
-  }, 250);
+    requestAnimationFrame(staggerIn);
+  }, 150);
 });
 </script>
 </body>
