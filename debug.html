@@ -1,0 +1,3818 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMLETTO — 数字並べ対戦ゲーム</title>
+
+<!-- OGP -->
+<meta property="og:title" content="NUMLETTO — 数字並べ対戦ゲーム">
+<meta property="og:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://seunggiwe.github.io/numeretto/">
+<meta property="og:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NUMLETTO — 数字並べ対戦ゲーム">
+<meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
+<meta name="twitter:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
+<meta name="description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要、URLを送るだけで今すぐ遊べる。">
+<meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
+
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0d0d; --surface:#161616; --panel:#1e1e1e; --border:#2a2a2a;
+    --accent:#e8d44d; --accent2:#e05c4b; --text:#e8e8e8; --muted:#555;
+    --face-down:#1a2a3a; --face-down-border:#2a4a6a;
+    --revealed:#f5f0e8; --revealed-text:#0d0d0d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Roboto Mono',monospace;min-height:100vh;display:flex;flex-direction:column;}
+
+  /* ── HEADER ── */
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;}
+  .logo{font-family:'Bebas Neue',cursive;font-size:1.8rem;letter-spacing:4px;color:var(--accent);}
+  .logo span{color:var(--accent2);}
+  .status-bar{display:flex;gap:16px;align-items:center;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+  .turn-indicator{background:var(--accent);color:#000;padding:3px 10px;border-radius:2px;font-weight:600;font-size:0.7rem;}
+
+  .game-wrap{display:flex;flex-direction:column;flex:1;}
+
+  /* ── PLAYER ZONES ── */
+  .player-zone{padding:14px 24px 12px;border-bottom:1px solid var(--border);transition:background 0.3s;}
+  .player-zone.active-player{background:linear-gradient(90deg,rgba(232,212,77,0.06) 0%,transparent 70%);border-left:3px solid var(--accent);}
+  /* ゲーム中のプレイヤーヘッダー: 矢印を左に添える */
+  .player-header-row{display:flex;align-items:flex-start;gap:6px;}
+  .turn-arrow{
+    font-size:1.1rem;color:var(--muted);padding-top:1px;user-select:none;
+    transition:color 0.3s;flex-shrink:0;
+  }
+  .turn-arrow.active{color:var(--accent);}
+  .player-header-main{flex:1;min-width:0;}
+  /* どんぐりハイライト: 選択前の拡大 */
+  @keyframes donguri-select-pop{
+    0%  {transform:scale(1);}
+    40% {transform:scale(1.35) translateY(-8px);filter:brightness(1.8);}
+    70% {transform:scale(1.3) translateY(-8px);}
+    100%{transform:scale(1.3) translateY(-8px);}
+  }
+  .tile.donguri-selected{
+    animation:donguri-select-pop 0.3s cubic-bezier(0.22,1,0.36,1) forwards !important;
+    border-color:#f0a030 !important;
+    box-shadow:0 0 24px 8px rgba(240,160,48,0.8) !important;
+    z-index:60;position:relative;
+  }
+  .player-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+  .player-name{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--muted);}
+  .active-player .player-name{color:var(--accent);}
+  .player-progress{font-size:0.62rem;color:var(--muted);}
+  .progress-bar-wrap{height:3px;background:var(--border);border-radius:2px;width:100px;overflow:hidden;}
+  .progress-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.4s;}
+  .badge{display:inline-block;font-size:0.58rem;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:1px;}
+  .badge-yellow{background:var(--accent);color:#000;}
+  .badge-red{background:var(--accent2);color:#fff;}
+  .badge-muted{border:1px solid var(--border);color:var(--muted);}
+
+  .tile-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+
+  /* ── TILES ── */
+  .tile{
+    width:48px;height:60px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:1rem;cursor:default;
+    transition:transform 0.12s,box-shadow 0.12s,border-color 0.1s;
+    user-select:none;border:2px solid transparent;letter-spacing:-0.5px;
+    position:relative;
+  }
+  .tile.face-down{
+    background:var(--face-down);border-color:var(--face-down-border);color:transparent;
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.02) 4px,rgba(255,255,255,0.02) 5px);
+  }
+  .tile.face-up.wild-tile{
+    background:linear-gradient(135deg,#2a2000,#1a1400);
+    border-color:#ffd700 !important;
+    color:#ffd700 !important;
+    box-shadow:0 0 12px rgba(255,215,0,0.5) !important;
+    font-size:1.3rem !important;
+    text-shadow:0 0 8px rgba(255,215,0,0.8);
+  }
+  @keyframes wild-pulse{
+    0%,100%{box-shadow:0 0 8px rgba(255,215,0,0.4);}
+    50%{box-shadow:0 0 20px 4px rgba(255,215,0,0.7);}
+  }
+  .tile.face-up.wild-tile{animation:wild-pulse 1.8s ease infinite;}
+  /* awaitWildPlace: gap-slotハイライト */
+  .gap-slot.wild-drop{
+    border-color:#ffd700 !important;
+    background:rgba(255,215,0,0.15) !important;
+    cursor:pointer !important;
+  }
+  .tile.face-up{background:var(--revealed);border-color:#c8c0a8;color:var(--revealed-text);box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+  .tile.selectable{cursor:pointer;border-color:#3a6a9a !important;}
+  .tile.selectable:hover{transform:translateY(-4px);box-shadow:0 6px 16px rgba(58,106,154,0.4);border-color:#5a9aca !important;}
+  .tile.selected{border-color:var(--accent) !important;box-shadow:0 0 0 3px rgba(232,212,77,0.4) !important;transform:translateY(-6px) !important;}
+  .tile.invalid-flash{animation:flash-red 0.4s ease;}
+  @keyframes flash-red{0%,100%{border-color:var(--accent2);}50%{background:rgba(224,92,75,0.15);}}
+
+  /* 逆さま表示 */
+  .tile.flipped { transform: rotate(180deg) !important; }
+  .tile.flipped:hover { transform: rotate(180deg) translateY(-4px) !important; }
+  /* 置けない（グレーアウト）捨て場タイル */
+  .tile.unplaceable { opacity:0.35; cursor:not-allowed !important; filter:grayscale(0.5); }
+  .tile.unplaceable:hover { transform:none !important; box-shadow:none !important; border-color:#c8c0a8 !important; }
+  /* 手札エリア内アクションバー */
+  .player-action-bar { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .btn-sm { font-family:'Roboto Mono',monospace; font-size:0.65rem; letter-spacing:0.5px; text-transform:uppercase;
+    padding:5px 12px; border-radius:3px; border:1px solid var(--border); cursor:pointer;
+    transition:all 0.15s; background:transparent; color:var(--text); }
+  .btn-sm:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  .btn-sm:disabled { opacity:0.3; cursor:not-allowed; }
+  .btn-sm.accent { border-color:var(--accent2); color:var(--accent2); }
+  .btn-sm.accent:hover:not(:disabled) { background:rgba(224,92,75,0.1); }
+  /* ひっくり返すボタン（バナー内） */
+  .flip-btn { font-family:'Roboto Mono',monospace; font-size:0.65rem; letter-spacing:0.5px; text-transform:uppercase;
+    padding:5px 14px; border-radius:3px; border:1px solid rgba(232,212,77,0.4); cursor:pointer;
+    transition:all 0.15s; background:rgba(232,212,77,0.08); color:var(--accent); }
+  .flip-btn:hover { background:rgba(232,212,77,0.2); border-color:var(--accent); }
+
+  /* Setup orange tiles */
+  .tile.to-place{background:#241800;border-color:#7a4800;color:#e8b040;cursor:pointer;}
+  .tile.to-place:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 6px 16px rgba(232,180,40,0.35);}
+  .tile.to-place.src-selected{border-color:var(--accent) !important;box-shadow:0 0 0 3px rgba(232,212,77,0.5) !important;transform:translateY(-8px) !important;background:#342200;}
+
+  /* Gap slot */
+  .gap-slot{width:14px;height:60px;border-radius:4px;border:2px dashed transparent;cursor:default;display:flex;align-items:center;justify-content:center;transition:all 0.12s;flex-shrink:0;font-size:0.9rem;color:transparent;}
+  .gap-slot.droppable{border-color:transparent;background:transparent;cursor:pointer;color:var(--accent);}
+  .gap-slot.droppable:hover{color:#fff;transform:scale(1.3);}
+
+  /* タイル差し込みアニメ */
+  @keyframes tile-insert{
+    0%  {transform:translateY(-28px) scale(0.85);opacity:0;}
+    60% {transform:translateY(4px) scale(1.06);opacity:1;}
+    100%{transform:translateY(0) scale(1);opacity:1;}
+  }
+  .tile.just-inserted{
+    animation:tile-insert 0.28s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  /* 裏タイル交換アニメ（出ていく側） */
+  @keyframes tile-out{
+    0%  {transform:translateY(0) scale(1);opacity:1;}
+    100%{transform:translateY(20px) scale(0.7);opacity:0;}
+  }
+  .tile.just-swapped-out{
+    animation:tile-out 0.22s ease forwards;
+  }
+  /* 裏タイル交換アニメ（入ってくる側） */
+  @keyframes tile-in{
+    0%  {transform:translateY(-20px) scale(0.7);opacity:0;}
+    100%{transform:translateY(0) scale(1);opacity:1;}
+  }
+  .tile.just-swapped-in{
+    animation:tile-in 0.25s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  /* ── 効果カードモーダル ── */
+  #effectCardModal{
+    position:fixed;inset:0;background:rgba(0,0,0,0.88);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:400;backdrop-filter:blur(8px);
+    opacity:0;pointer-events:none;transition:opacity 0.25s;
+    overflow-y:auto;padding:24px 12px;
+  }
+  #effectCardModal.show{opacity:1;pointer-events:all;}
+
+  /* 単体カード表示（コインフリップ結果・観戦者用） */
+  #effectCardInner{
+    background:var(--surface);border:2px solid var(--accent);
+    border-radius:12px;padding:32px 36px;max-width:400px;width:92%;
+    text-align:center;
+  }
+  #effectCardInner .ec-name{
+    font-family:'Bebas Neue',cursive;font-size:2.4rem;letter-spacing:4px;
+    color:var(--text);margin-bottom:12px;line-height:1.1;
+  }
+  #effectCardInner .ec-desc{
+    font-size:0.72rem;color:#888;line-height:1.8;margin-bottom:22px;
+    min-height:40px;white-space:pre-line;
+  }
+  #effectCardInner .ec-buttons{display:flex;gap:8px;flex-direction:column;}
+  .ec-use-btn{
+    font-family:'Roboto Mono',monospace;font-size:0.75rem;letter-spacing:2px;
+    padding:12px;border-radius:4px;
+    border:1px solid var(--accent);background:rgba(232,212,77,0.1);
+    color:var(--accent);cursor:pointer;transition:all 0.15s;
+  }
+  .ec-use-btn:hover{background:rgba(232,212,77,0.25);}
+  @keyframes ec-reveal{
+    0%  {transform:rotateY(90deg) scale(0.8);opacity:0;}
+    60% {transform:rotateY(-8deg) scale(1.04);opacity:1;}
+    100%{transform:rotateY(0deg) scale(1);opacity:1;}
+  }
+  #effectCardInner.reveal{animation:ec-reveal 0.45s cubic-bezier(0.22,1,0.36,1) forwards;}
+
+  /* 2枚選択レイアウト */
+  #ecChoiceWrap{
+    display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:16px;
+    max-width:900px;width:96%;
+  }
+  .ec-card-choice{
+    width:108px;height:162px;flex-shrink:0;
+    background:linear-gradient(160deg,#1a1a2e 0%,#16213e 100%);
+    padding:14px 10px 12px;text-align:center;
+    cursor:pointer;
+    transition:transform 0.18s,box-shadow 0.18s;
+    position:relative;
+    border:2px solid var(--border);
+    border-radius:8px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.5);
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  }
+  .ec-card-choice:hover{
+    transform:translateY(-10px) scale(1.07);
+    box-shadow:0 18px 40px rgba(0,0,0,0.7);
+    z-index:2;
+  }
+  .ec-card-choice .ec-card-icon{
+    font-size:1.6rem;display:block;flex-shrink:0;
+  }
+  .ec-card-choice .ec-card-label{
+    font-size:0.4rem;letter-spacing:2px;color:var(--muted);
+    text-transform:uppercase;flex-shrink:0;
+  }
+  .ec-card-choice .ec-card-name{
+    font-family:'Bebas Neue',cursive;font-size:0.95rem;letter-spacing:1px;
+    line-height:1.2;flex-shrink:0;
+  }
+  .ec-card-choice .ec-card-divider{
+    width:24px;height:1px;border-radius:1px;flex-shrink:0;
+  }
+  .ec-card-choice .ec-card-desc{
+    font-size:0.44rem;color:#666;line-height:1.55;white-space:pre-line;flex-shrink:0;
+  }
+  .ec-card-choice .ec-card-select{
+    font-size:0.4rem;letter-spacing:1.5px;
+    color:var(--muted);text-transform:uppercase;
+    transition:color 0.15s;flex-shrink:0;
+  }
+  .ec-card-choice:hover .ec-card-select{color:var(--text);}
+  .ec-card-choice:hover .ec-card-icon{filter:drop-shadow(0 0 6px currentColor);}
+
+  /* 上部ラベル */
+  #ecChoiceLabel{
+    text-align:center;font-size:0.58rem;letter-spacing:3px;
+    color:var(--accent);margin-bottom:16px;text-transform:uppercase;
+  }
+  @keyframes ec-choice-in{
+    0%  {opacity:0;transform:translateY(24px);}
+    100%{opacity:1;transform:translateY(0);}
+  }
+  #ecChoiceWrap .ec-card-choice{
+    animation:ec-choice-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  #ecChoiceWrap .ec-card-choice:nth-child(2){animation-delay:0.05s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(3){animation-delay:0.10s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(4){animation-delay:0.15s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(5){animation-delay:0.20s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(6){animation-delay:0.25s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(7){animation-delay:0.30s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(8){animation-delay:0.35s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(9){animation-delay:0.40s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(10){animation-delay:0.45s;}
+  /* 選択アニメ */
+  @keyframes ec-selected{
+    0%  {transform:translateY(0) scale(1);}
+    25% {transform:translateY(-18px) scale(1.06);}
+    60% {transform:translateY(-14px) scale(1.08);box-shadow:0 24px 60px rgba(0,0,0,0.6);}
+    100%{transform:translateY(-14px) scale(1.08);opacity:1;}
+  }
+  @keyframes ec-rejected{
+    0%  {transform:translateY(0) scale(1);opacity:1;}
+    30% {transform:translateY(6px) scale(0.97);opacity:0.5;}
+    100%{transform:translateY(12px) scale(0.94);opacity:0;filter:blur(2px);}
+  }
+  @keyframes ec-modal-fadeout{
+    0%  {opacity:1;}
+    60% {opacity:1;}
+    100%{opacity:0;}
+  }
+  .ec-card-choice.selected{
+    animation:ec-selected 0.5s cubic-bezier(0.22,1,0.36,1) forwards !important;
+    z-index:10;
+  }
+  .ec-card-choice.rejected{
+    animation:ec-rejected 0.45s cubic-bezier(0.4,0,1,1) forwards !important;
+    pointer-events:none;
+  }
+  #effectCardModal.closing{
+    animation:ec-modal-fadeout 0.7s ease forwards;
+    pointer-events:none;
+  }
+
+  /* 一か八か: コインフリップ演出 */
+  @keyframes coin-spin{
+    0%  {transform:rotateY(0deg);}
+    100%{transform:rotateY(1800deg);}
+  }
+  #coinFlipDisplay{
+    width:80px;height:80px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:2rem;margin:0 auto 16px;
+    border:3px solid var(--accent);
+    background:var(--panel);
+  }
+  #coinFlipDisplay.spinning{
+    animation:coin-spin 1.2s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  /* 一か八か: 山札/捨て場タイル選択ハイライト */
+  .tile.ikka-target{
+    border-color:#ffd700 !important;
+    box-shadow:0 0 14px rgba(255,215,0,0.8) !important;
+    cursor:pointer !important;
+    animation:ikka-pulse 0.6s ease infinite;
+  }
+  @keyframes ikka-pulse{
+    0%,100%{box-shadow:0 0 8px 2px rgba(255,215,0,0.6);}
+    50%{box-shadow:0 0 22px 6px rgba(255,215,0,0.3);}
+  }
+
+  /* どんぐりころころ: 対象タイル選択 */
+  .tile.donguri-target{
+    border-color:#f0a030 !important;
+    box-shadow:0 0 12px rgba(240,160,48,0.7) !important;
+    cursor:crosshair !important;
+    animation:donguri-pulse 0.7s ease infinite;
+  }
+  @keyframes donguri-pulse{
+    0%,100%{box-shadow:0 0 6px 2px rgba(240,160,48,0.5);}
+    50%{box-shadow:0 0 20px 6px rgba(240,160,48,0.25);}
+  }
+  /* どんぐりころころ発動: 裏返しアニメ */
+  @keyframes donguri-flip{
+    0%  {transform:rotateY(0deg) scale(1);}
+    20% {transform:rotateY(90deg) scale(1.3) translateY(-20px);filter:brightness(2);}
+    50% {transform:rotateY(180deg) scale(1.4) translateY(-28px);filter:brightness(2.5) hue-rotate(30deg);}
+    80% {transform:rotateY(270deg) scale(1.2) translateY(-16px);filter:brightness(1.5);}
+    100%{transform:rotateY(360deg) scale(1) translateY(0);filter:brightness(1);}
+  }
+  @keyframes donguri-glow{
+    0%,100%{box-shadow:0 0 0px rgba(240,160,48,0);}
+    40%{box-shadow:0 0 40px 16px rgba(240,160,48,0.7);}
+  }
+  .tile.donguri-flipping{
+    animation:donguri-flip 0.9s cubic-bezier(0.22,1,0.36,1) forwards,
+              donguri-glow 0.9s ease forwards !important;
+    z-index:50;
+  }
+  /* ルーレットモーダル（スロット式） */
+  #rouletteModal{
+    position:fixed;inset:0;background:rgba(0,0,0,0.88);
+    display:flex;align-items:center;justify-content:center;
+    z-index:410;backdrop-filter:blur(8px);
+    opacity:0;pointer-events:none;transition:opacity 0.25s;
+  }
+  #rouletteModal.show{opacity:1;pointer-events:all;}
+  #rouletteInner{
+    background:var(--surface);border:2px solid #ff8c00;
+    border-radius:12px;padding:28px 36px;max-width:380px;width:92%;
+    text-align:center;
+  }
+  #rouletteTitle{
+    font-family:'Bebas Neue',cursive;font-size:1.5rem;letter-spacing:4px;
+    color:#ff8c00;margin-bottom:18px;
+  }
+  /* スロットウィンドウ */
+  #rouletteWindow{
+    overflow:hidden;height:72px;
+    border:2px solid #ff8c00;border-radius:6px;
+    background:var(--bg);margin:0 auto 8px;
+    position:relative;
+  }
+  /* 上下グラデーションマスク */
+  #rouletteWindow::before,#rouletteWindow::after{
+    content:'';position:absolute;left:0;right:0;height:20px;z-index:2;pointer-events:none;
+  }
+  #rouletteWindow::before{top:0;background:linear-gradient(to bottom,var(--bg),transparent);}
+  #rouletteWindow::after{bottom:0;background:linear-gradient(to top,var(--bg),transparent);}
+  /* 中央ハイライトライン */
+  #rouletteLine{
+    position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+    height:2px;background:#ff8c00;z-index:3;opacity:0.6;
+  }
+  #rouletteTrack{
+    display:flex;flex-direction:column;
+    transition:transform 0s;
+  }
+  .roulette-item{
+    height:72px;display:flex;align-items:center;justify-content:center;
+    font-family:'Bebas Neue',cursive;font-size:2.2rem;letter-spacing:4px;
+    color:var(--text);flex-shrink:0;
+  }
+  .roulette-item.winner{color:#ff8c00;}
+  #rouletteResult{
+    font-size:0.65rem;color:#888;letter-spacing:2px;min-height:20px;margin-top:8px;
+  }
+
+  /* レディーファースト: プレイヤー選択 */
+  .lf-player-btn{
+    font-family:'Roboto Mono',monospace;font-size:0.68rem;letter-spacing:1px;
+    padding:9px 16px;border-radius:4px;border:1px solid #e070f0;
+    background:rgba(224,112,240,0.08);color:#e070f0;cursor:pointer;
+    transition:all 0.15s;width:100%;margin-bottom:6px;
+  }
+  .lf-player-btn:hover{background:rgba(224,112,240,0.22);}
+
+  /* 萬國驚天掌ボタン */
+  .btn-sm.mankoku{
+    border-color:#c040e0;color:#c040e0;
+    background:rgba(192,64,224,0.06);
+    letter-spacing:0.3px;
+    animation:mankoku-pulse 1.4s ease infinite;
+  }
+  .btn-sm.mankoku:hover:not(:disabled){
+    background:rgba(192,64,224,0.18);border-color:#d870f8;color:#d870f8;
+  }
+  @keyframes mankoku-pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(192,64,224,0.4);}
+    50%{box-shadow:0 0 8px 2px rgba(192,64,224,0.2);}
+  }
+  /* 萬國驚天掌: 対象タイル選択ハイライト */
+  .tile.mankoku-target{
+    border-color:#c040e0 !important;
+    box-shadow:0 0 10px rgba(192,64,224,0.6) !important;
+    cursor:crosshair !important;
+    animation:mankoku-target-pulse 0.8s ease infinite;
+  }
+  @keyframes mankoku-target-pulse{
+    0%,100%{box-shadow:0 0 6px 1px rgba(192,64,224,0.5);}
+    50%{box-shadow:0 0 18px 4px rgba(192,64,224,0.3);}
+  }
+  /* 萬國驚天掌発動エフェクト */
+  @keyframes mankoku-hit{
+    0%  {filter:brightness(1) saturate(1);}
+    20% {filter:brightness(2.5) saturate(0) hue-rotate(270deg);}
+    60% {filter:brightness(1.5) saturate(2) hue-rotate(180deg);}
+    100%{filter:brightness(1) saturate(1);}
+  }
+  .tile.mankoku-hit{
+    animation:mankoku-hit 0.6s ease forwards !important;
+  }
+  /* 連番隣接スロット — 差し込み禁止 */
+  .gap-slot.blocked{
+    width:8px;cursor:not-allowed;
+    background:repeating-linear-gradient(45deg,rgba(224,92,75,0.12),rgba(224,92,75,0.12) 2px,transparent 2px,transparent 5px);
+    border-color:rgba(224,92,75,0.25);
+    color:transparent;
+  }
+
+  /* Setup panel */
+  .setup-panel{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);}
+  .setup-panel-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:8px;}
+  .reveal-hand{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* ══════════════════════════════════════
+     CENTER ZONE — Pool spread + Discard
+  ══════════════════════════════════════ */
+  .center-zone{
+    background:var(--panel);
+    border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    display:flex;flex-direction:column;
+    flex:1;min-height:0;
+  }
+
+  /* Pool spread row */
+  /* ── CARD AREA DRAWER ── */
+  .card-area-drawer{
+    position:fixed;left:0;right:0;
+    background:var(--surface);
+    border-bottom:2px solid var(--border);
+    border-radius:0 0 12px 12px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+    z-index:200;
+    top:calc(-1 * var(--drawer-h, 33vh));
+    transition:transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .card-area-drawer.open{transform:translateY(calc(var(--drawer-h, 33vh) + var(--header-h, 38px)));}
+  .card-area-handle{
+    position:absolute;bottom:0;left:0;right:0;height:28px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    background:var(--surface);border-top:1px solid var(--border);
+    cursor:pointer;z-index:2;transition:background 0.15s;
+  }
+  .card-area-handle:hover{background:var(--panel);}
+  .handle-arrow{font-size:0.65rem;color:var(--muted);transition:transform 0.3s;}
+  .card-area-drawer.open .handle-arrow{transform:rotate(180deg);}
+  .handle-label{font-size:0.55rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  .card-scatter{position:absolute;inset:0 0 28px 0;overflow:hidden;}
+  .scatter-tile{
+    position:absolute;width:48px;height:60px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:1rem;
+    user-select:none;border:2px solid transparent;
+    transition:box-shadow 0.15s,border-color 0.15s;
+  }
+  .scatter-tile.pool-tile{
+    background:var(--face-down);border-color:var(--face-down-border);
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.02) 4px,rgba(255,255,255,0.02) 5px);
+    cursor:pointer;
+  }
+  .scatter-tile.pool-tile:hover{
+    box-shadow:0 8px 24px rgba(42,74,106,0.8);border-color:#4a8aba;
+    z-index:100 !important;transform:rotate(var(--rot)) scale(1.12) !important;
+  }
+  .scatter-tile.discard-tile{
+    background:var(--revealed);border-color:#c8c0a8;
+    color:var(--revealed-text);box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .scatter-tile.discard-tile.takeable{cursor:pointer;}
+  .scatter-tile.discard-tile.takeable:hover{
+    box-shadow:0 8px 24px rgba(232,212,77,0.4);border-color:var(--accent);
+    z-index:100 !important;transform:rotate(var(--rot)) scale(1.12) !important;
+  }
+  .scatter-tile.ikka-target{
+    border-color:#ffd700 !important;box-shadow:0 0 14px rgba(255,215,0,0.7) !important;cursor:crosshair !important;
+  }
+  .scatter-who{
+    position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);
+    font-size:0.42rem;color:var(--muted);letter-spacing:0.5px;
+    white-space:nowrap;pointer-events:none;
+  }
+  .scatter-tile .new-dot{
+    position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;
+    background:var(--accent2);border:2px solid var(--panel);animation:blink 1s ease infinite;
+  }
+  #dragGhost{
+    position:fixed;pointer-events:none;z-index:999;
+    width:48px;height:60px;border-radius:5px;
+    background:var(--revealed);border:2px solid var(--accent);
+    color:var(--revealed-text);font-weight:600;font-size:1rem;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 12px 32px rgba(232,212,77,0.4);opacity:0;transition:opacity 0.1s;
+  }
+  .tile.dragging{opacity:0.35;}
+  .card-area-trigger{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;width:100%;height:100%;cursor:pointer;
+    background:transparent;border:none;color:var(--text);font-family:'Roboto Mono',monospace;
+  }
+  .trigger-icon{position:relative;width:80px;height:44px;}
+  .trigger-mini-tile{
+    position:absolute;width:32px;height:42px;border-radius:3px;
+    background:var(--face-down);border:1.5px solid var(--face-down-border);
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.02) 3px,rgba(255,255,255,0.02) 4px);
+  }
+  .trigger-label{font-size:0.75rem;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-top:8px;}
+  .trigger-hint{font-size:0.48rem;letter-spacing:1px;color:var(--muted);margin-top:8px;}
+  /* 後方互換 */
+  .pool-section{}
+  .pool-label-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .center-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);}
+  .tile.pool-tile{cursor:pointer;border-color:var(--face-down-border);}
+  .tile.pool-tile:hover{box-shadow:0 8px 20px rgba(42,74,106,0.6);border-color:#4a8aba;}
+  .tile.pool-tile.flipping{animation:flipCard 0.35s ease forwards;pointer-events:none;}
+  @keyframes flipCard{
+    0%  {transform:rotateY(0deg)   translateY(0);}
+    50% {transform:rotateY(90deg)  translateY(-8px);}
+    100%{transform:rotateY(0deg)   translateY(-8px);border-color:var(--accent);box-shadow:0 0 16px rgba(232,212,77,0.5);}
+  }
+
+  /* ── DRAWN CARD BANNER ── */
+  .drawn-banner{
+    display:flex;align-items:center;gap:16px;
+    background:rgba(232,212,77,0.07);
+    border:1px solid rgba(232,212,77,0.2);
+    border-radius:6px;
+    padding:10px 18px;
+    margin-bottom:4px;
+  }
+  .drawn-banner.hidden{display:none;}
+  .drawn-card-display{
+    width:56px;height:70px;border-radius:6px;
+    background:var(--revealed);border:2px solid var(--accent);
+    color:var(--revealed-text);
+    display:flex;align-items:center;justify-content:center;
+    font-size:1.4rem;font-weight:700;letter-spacing:-1px;
+    box-shadow:0 0 16px rgba(232,212,77,0.35);
+    flex-shrink:0;
+  }
+  .drawn-banner-text{display:flex;flex-direction:column;gap:4px;}
+  .drawn-banner-title{font-size:0.6rem;text-transform:uppercase;letter-spacing:2px;color:var(--accent);}
+  .drawn-banner-sub{font-size:0.72rem;color:var(--text);}
+  .drawn-banner-rev{font-size:0.62rem;color:var(--muted);}
+
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  /* ── ACTION PANEL ── */
+  .action-panel{padding:12px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface);min-height:54px;}
+  .action-label{font-size:0.62rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);min-width:70px;}
+  .btn{font-family:'Roboto Mono',monospace;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:3px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:transparent;color:var(--text);}
+  .btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
+  .btn.primary:hover:not(:disabled){background:#f0e060;}
+  .btn:disabled{opacity:0.3;cursor:not-allowed;}
+  .btn.danger{border-color:var(--accent2);color:var(--accent2);}
+  .btn.danger:hover:not(:disabled){background:rgba(224,92,75,0.1);}
+
+  .phase-hint{font-size:0.67rem;color:var(--accent);letter-spacing:0.4px;padding:8px 24px;background:rgba(232,212,77,0.04);border-bottom:1px solid rgba(232,212,77,0.07);min-height:32px;}
+
+  /* ── LOG (top-fixed, 4 lines) ── */
+  .log-wrap{
+    padding:6px 24px;
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    overflow:hidden;
+    flex-shrink:0;
+  }
+  .log-entry{font-size:0.63rem;color:var(--muted);padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .log-entry.highlight{color:var(--accent);}
+  .log-entry.error{color:var(--accent2);}
+  .log-entry .ts{color:#333;margin-right:8px;}
+
+  /* ── OVERLAYS ── */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.87);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);overflow-y:auto;}
+  .overlay.hidden{display:none;}
+  .overlay-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:40px 50px;text-align:center;max-width:480px;width:90%;}
+  /* NUMLETTOロゴ */
+  .numletto-logo{text-align:center;margin-bottom:28px;}
+  .logo-tiles{display:flex;justify-content:center;gap:6px;margin-bottom:14px;}
+  /* 裏向きタイル（デフォルト） */
+  .logo-tile{
+    width:38px;height:48px;display:flex;align-items:center;justify-content:center;
+    font-family:'Roboto Mono','Bebas Neue',cursive;font-size:0.85rem;font-weight:600;
+    background:var(--face-down);border:2px solid var(--face-down-border);
+    border-radius:5px;color:transparent;letter-spacing:0;
+    animation:logo-tile-in 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.025) 3px,rgba(255,255,255,0.025) 4px);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .logo-tile:nth-child(1){animation-delay:0.05s;}
+  .logo-tile:nth-child(2){animation-delay:0.12s;}
+  .logo-tile:nth-child(3){animation-delay:0.19s;}
+  .logo-tile:nth-child(4){animation-delay:0.26s;}
+  .logo-tile:nth-child(5){animation-delay:0.33s;}
+  /* 表向きタイル */
+  .logo-tile.face-up{
+    background:var(--revealed);border-color:#c8c0a8;
+    color:var(--revealed-text);
+    background-image:none;
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  }
+  @keyframes logo-tile-in{
+    from{opacity:0;transform:translateY(-12px) rotateX(40deg);}
+    to{opacity:1;transform:translateY(0) rotateX(0);}
+  }
+  .logo-title{
+    font-family:'Bebas Neue',cursive;font-size:3.2rem;letter-spacing:10px;
+    color:var(--text);text-shadow:0 0 40px rgba(232,212,77,0.25);
+    animation:logo-title-in 0.6s 0.35s cubic-bezier(0.22,1,0.36,1) both;
+    line-height:1;margin-bottom:4px;
+  }
+  @keyframes logo-title-in{
+    from{opacity:0;letter-spacing:24px;}
+    to{opacity:1;letter-spacing:10px;}
+  }
+  .logo-sub{
+    font-size:0.6rem;letter-spacing:4px;color:var(--muted);
+    animation:logo-sub-in 0.5s 0.55s ease both;
+  }
+  @keyframes logo-sub-in{
+    from{opacity:0;}to{opacity:1;}
+  }
+  .overlay-card h1{font-family:'Bebas Neue',cursive;font-size:3.5rem;letter-spacing:6px;color:var(--accent);margin-bottom:8px;}
+  .overlay-card p{color:var(--muted);font-size:0.8rem;line-height:1.8;margin-bottom:22px;}
+  .overlay-card .subtitle{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--text);margin-bottom:18px;}
+  .setup-options{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+  .setup-row{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .setup-row label{font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+  .setup-row select,.setup-row input{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:'Roboto Mono',monospace;font-size:0.7rem;padding:6px 10px;border-radius:3px;}
+  .win-stats{display:flex;gap:28px;justify-content:center;margin-bottom:20px;}
+  .win-stat .val{font-family:'Bebas Neue',cursive;font-size:2.5rem;color:var(--accent);line-height:1;}
+  .win-stat .lbl{font-size:0.58rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:4px;}
+
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+  /* ── バージョンバッジ ── */
+  .version-badge{
+    font-family:'Roboto Mono',monospace;
+    font-size:0.58rem;letter-spacing:1px;
+    color:var(--muted);cursor:pointer;
+    border:1px solid var(--border);
+    border-radius:3px;padding:2px 7px;
+    transition:all 0.15s;
+    text-decoration:none;display:inline-block;
+  }
+  .version-badge:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* ── チェンジログモーダル ── */
+  #changelogOverlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.88);
+    display:flex;align-items:center;justify-content:center;
+    z-index:500;backdrop-filter:blur(4px);
+    opacity:0;pointer-events:none;transition:opacity 0.18s;
+  }
+  #changelogOverlay.show{opacity:1;pointer-events:all;}
+  #changelogCard{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:8px;padding:32px 36px;
+    max-width:480px;width:92%;max-height:80vh;
+    overflow-y:auto;
+  }
+  #changelogCard h2{
+    font-family:'Bebas Neue',cursive;font-size:1.8rem;
+    letter-spacing:4px;color:var(--accent);margin-bottom:20px;
+  }
+  .cl-version{margin-bottom:22px;}
+  .cl-version-head{
+    display:flex;align-items:baseline;gap:10px;margin-bottom:8px;
+  }
+  .cl-ver-num{
+    font-family:'Bebas Neue',cursive;font-size:1.1rem;
+    letter-spacing:2px;color:var(--text);
+  }
+  .cl-ver-date{font-size:0.58rem;color:var(--muted);letter-spacing:1px;}
+  .cl-ver-current{
+    font-size:0.55rem;background:var(--accent);color:#000;
+    padding:1px 6px;border-radius:2px;font-weight:700;letter-spacing:1px;
+  }
+  .cl-items{list-style:none;display:flex;flex-direction:column;gap:5px;}
+  .cl-items li{
+    font-size:0.68rem;color:var(--muted);padding-left:14px;position:relative;line-height:1.6;
+  }
+  .cl-items li::before{content:'—';position:absolute;left:0;color:var(--border);}
+  .cl-items li.highlight{color:var(--text);}
+  .cl-items li.highlight::before{content:'✦';color:var(--accent);}
+  #changelogClose{
+    width:100%;margin-top:20px;
+    font-family:'Roboto Mono',monospace;font-size:0.68rem;
+    letter-spacing:2px;text-transform:uppercase;
+    padding:9px;border-radius:3px;
+    border:1px solid var(--border);cursor:pointer;
+    background:transparent;color:var(--muted);transition:all 0.15s;
+  }
+  #changelogClose:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* ── 置ける位置ハイライト ── */
+  .tile.can-place{
+    border-color:#3a8a5a !important;
+    box-shadow:0 0 8px rgba(58,180,100,0.35) !important;
+    cursor:pointer;
+  }
+  .tile.can-place:hover{
+    transform:translateY(-4px) !important;
+    box-shadow:0 6px 18px rgba(58,180,100,0.55) !important;
+    border-color:#5adc80 !important;
+  }
+  .tile.cannot-place{
+    opacity:0.3;
+    filter:grayscale(0.6);
+  }
+
+  /* ── 連番達成エフェクト ── */
+  @keyframes bonus-glow{
+    0%  {box-shadow:0 0 0 0 rgba(232,212,77,0.9);transform:translateY(-2px);}
+    40% {box-shadow:0 0 0 12px rgba(232,212,77,0);transform:translateY(-8px);}
+    60% {box-shadow:0 0 0 20px rgba(232,212,77,0);transform:translateY(-4px);}
+    100%{box-shadow:0 0 0 0 rgba(232,212,77,0);transform:translateY(0);}
+  }
+  .tile.bonus-flash{
+    animation:bonus-glow 0.7s ease forwards !important;
+    border-color:var(--accent) !important;
+    background:#fff8dc !important;
+    color:#000 !important;
+    z-index:10;
+  }
+
+  /* ── ターン移行バナー ── */
+  #turnBanner{
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.7);
+    background:rgba(13,13,13,0.93);border:2px solid var(--accent);
+    border-radius:8px;padding:18px 48px;z-index:300;
+    font-family:'Bebas Neue',cursive;font-size:2.2rem;letter-spacing:6px;
+    color:var(--accent);text-align:center;pointer-events:none;
+    opacity:0;transition:opacity 0.15s,transform 0.15s;
+  }
+  #turnBanner.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  #turnBanner small{display:block;font-family:'Roboto Mono',monospace;font-size:0.6rem;letter-spacing:3px;color:var(--muted);margin-top:4px;}
+
+  /* ── パーティクルコンテナ ── */
+  #particles{position:fixed;inset:0;pointer-events:none;z-index:290;overflow:hidden;}
+  .particle{
+    position:absolute;width:6px;height:6px;border-radius:50%;
+    animation:particle-fall linear forwards;
+  }
+  @keyframes particle-fall{
+    0%  {opacity:1;transform:translate(0,0) scale(1);}
+    100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(0.2);}
+  }
+
+  /* ── LOBBY ── */
+  .lobby-player{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:4px;
+    background:var(--panel);border:1px solid var(--border);
+    font-size:0.75rem;
+  }
+  .lobby-player.is-me{border-color:var(--accent);}
+  .lobby-player .lp-name{flex:1;letter-spacing:1px;}
+  .lobby-player .lp-host{
+    font-size:0.55rem;background:var(--accent);color:#000;
+    padding:2px 6px;border-radius:2px;font-weight:700;letter-spacing:1px;
+  }
+  .lobby-player .lp-you{
+    font-size:0.55rem;border:1px solid var(--accent);color:var(--accent);
+    padding:2px 6px;border-radius:2px;letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TITLE: 接続画面 -->
+<div class="overlay hidden" id="titleOverlay">
+  <div class="overlay-card" style="max-width:420px;padding-top:36px;">
+    <div class="numletto-logo">
+      <div class="logo-tiles">
+        <span class="logo-tile face-up">7</span>
+        <span class="logo-tile"></span>
+        <span class="logo-tile face-up">42</span>
+        <span class="logo-tile"></span>
+        <span class="logo-tile face-up">99</span>
+      </div>
+      <h1 class="logo-title">NUMLETTO</h1>
+      <div class="logo-sub">数字並べ対戦ゲーム</div>
+    </div>
+    <div class="setup-options" style="gap:12px;">
+      <div class="setup-row">
+        <label>名 前</label>
+        <input type="text" id="myNameInput" placeholder="あなたの名前" maxlength="12"
+          style="font-size:0.85rem;padding:10px 12px;"
+          onkeydown="if(event.key==='Enter')connectAction()">
+      </div>
+      <div class="setup-row">
+        <label>合言葉</label>
+        <input type="text" id="roomIdInput" placeholder="ルーム合言葉"
+          style="text-transform:uppercase;font-size:0.85rem;padding:10px 12px;"
+          onkeydown="if(event.key==='Enter')connectAction()">
+      </div>
+    </div>
+    <p style="font-size:0.6rem;color:var(--muted);margin:10px 0 16px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
+    <button class="btn primary" id="btnConnect" onclick="connectAction()"
+      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
+    <p id="connectError" style="font-size:0.65rem;color:var(--accent2);margin-top:8px;min-height:16px;"></p>
+    <div style="text-align:center;margin-top:12px;">
+      <span class="version-badge" onclick="openChangelog()">beta 2.1.0</span>
+    </div>
+  </div>
+</div>
+
+<!-- LOBBY: 待合室 -->
+<div class="overlay hidden" id="lobbyOverlay">
+  <div class="overlay-card" style="max-width:400px;">
+    <h1>NUMLETTO</h1>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+      <span class="subtitle" id="lobbyRoomLabel" style="margin-bottom:0;">ROOM: —</span>
+    </div>
+    <p style="color:var(--muted);font-size:0.68rem;margin-bottom:16px;">参加者が揃ったらホストがゲームを開始してください</p>
+    <div id="lobbyPlayerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;min-height:60px;"></div>
+    <button class="btn primary" id="btnStartGame" onclick="hostStartGame()"
+      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;display:none;">GAME START</button>
+    <p id="lobbyWaitMsg" style="font-size:0.65rem;color:var(--muted);margin-top:4px;"></p>
+    <!-- 共有ボタン -->
+    <div id="shareArea" style="margin-top:12px;display:none;">
+      <div style="font-size:0.58rem;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:8px;">— 友達を招待 —</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="btnCopyUrl" onclick="copyRoomUrl()"
+          style="flex:1;padding:8px;font-size:0.65rem;letter-spacing:1px;border-color:#4a7a9a;color:#4a7a9a;">
+          🔗 URLをコピー
+        </button>
+        <button class="btn" onclick="shareToLine()"
+          style="flex:1;padding:8px;font-size:0.65rem;letter-spacing:1px;border-color:#06c755;color:#06c755;">
+          📲 LINEで送る
+        </button>
+      </div>
+      <div id="copyFeedback" style="font-size:0.58rem;color:var(--accent);text-align:center;min-height:16px;margin-top:4px;"></div>
+    </div>
+    <button class="btn" onclick="leaveLobby()"
+      style="width:100%;padding:8px;font-size:0.68rem;margin-top:10px;border-color:#444;color:#666;">← 退出する</button>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="overlay hidden" id="resultOverlay">
+  <div class="overlay-card" style="max-width:540px;padding:28px 32px;">
+    <div id="resultContent"></div>
+  </div>
+</div>
+
+<!-- ルーレットモーダル（お前のものは俺の物） -->
+<div id="rouletteModal">
+  <div id="rouletteInner">
+    <div id="rouletteTitle">😈 お前のものは俺の物</div>
+    <div id="rouletteWindow">
+      <div id="rouletteLine"></div>
+      <div id="rouletteTrack"></div>
+    </div>
+    <div id="rouletteResult"></div>
+  </div>
+</div>
+
+<!-- 効果カードモーダル -->
+<div id="effectCardModal">
+  <!-- 単体表示（コインフリップ等） -->
+  <div id="effectCardInner" style="display:none;">
+    <div class="ec-name" id="ecName">—</div>
+    <div class="ec-desc" id="ecDesc">—</div>
+    <div class="ec-buttons" id="ecButtons"></div>
+  </div>
+  <!-- 2枚選択表示 -->
+  <div id="ecChoiceContainer" style="display:none;width:96%;max-width:720px;">
+    <div id="ecChoiceLabel">✦ EFFECT CARD — どちらを発動しますか？ ✦</div>
+    <div id="ecChoiceWrap"></div>
+  </div>
+</div>
+
+<!-- ターン移行バナー -->
+<div id="turnBanner"><span id="turnBannerName">—</span><small>YOUR TURN</small></div>
+
+<!-- 向き選択ダイアログ -->
+<div id="orientModal" style="
+  display:none;position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:28px 32px;text-align:center;min-width:280px;">
+    <div style="font-size:0.65rem;letter-spacing:2px;color:var(--muted);margin-bottom:16px;">どちらの向きで置きますか？</div>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button id="orientBtnNormal" class="btn primary" style="font-size:1.4rem;padding:16px 24px;min-width:90px;" onclick="resolveOrient(false)">—</button>
+      <button id="orientBtnRev" class="btn" style="font-size:1.4rem;padding:16px 24px;min-width:90px;border-color:var(--accent);color:var(--accent);" onclick="resolveOrient(true)">—</button>
+    </div>
+  </div>
+</div>
+
+<!-- チェンジログ -->
+<div id="changelogOverlay" onclick="if(event.target===this)closeChangelog()">
+  <div id="changelogCard">
+    <h2>CHANGELOG</h2>
+    <div id="changelogContent"></div>
+    <button id="changelogClose" onclick="closeChangelog()">CLOSE</button>
+  </div>
+</div>
+<!-- カードエリアドロワー（position:fixedで常時存在） -->
+<div class="card-area-drawer" id="cardAreaDrawer">
+  <div class="card-scatter" id="cardScatter"></div>
+  <div class="card-area-handle" onclick="toggleCardArea()">
+    <span class="handle-arrow">▲</span>
+    <span class="handle-label">カードエリア</span>
+    <span class="handle-arrow">▲</span>
+  </div>
+</div>
+<!-- ドラッグゴースト -->
+<div id="dragGhost"></div>
+<!-- パーティクルコンテナ -->
+<div id="particles"></div>
+
+<header>
+  <div class="logo"><span style="color:var(--accent)">NUM</span><span style="color:var(--accent2)">LETTO</span></div>
+  <div class="status-bar">
+    <span id="hdrTurn" class="turn-indicator">SETUP</span>
+    <span id="hdrRound">—</span>
+    <span id="hdrDir" style="font-size:0.58rem;color:var(--muted);letter-spacing:1px;" title="ターン方向"></span>
+    <span id="hdrPool">POOL: —</span>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.6rem;color:var(--muted);cursor:pointer;">
+      <span id="volIcon" style="font-size:0.85rem;">🔊</span>
+      <input type="range" id="volSlider" min="0" max="1" step="0.05" value="0.7"
+        oninput="setVolume(this.value)"
+        style="width:64px;accent-color:var(--accent);cursor:pointer;">
+    </label>
+    <button class="btn" onclick="location.reload()" style="padding:3px 9px;font-size:0.62rem;">↺ NEW</button>
+    <span class="version-badge" onclick="openChangelog()" id="hdrVersion">beta 2.1.0</span>
+  </div>
+</header>
+
+<!-- LOG: 4 lines fixed under header -->
+<div class="log-wrap" id="logWrap"></div>
+
+<div class="game-wrap" id="gameWrap">
+
+  <!-- CENTER ZONE (hidden during setup) -->
+  <div class="center-zone" id="centerZone" style="display:none">
+
+    <!-- ① 引いたカードバナー -->
+    <div class="drawn-banner hidden" id="drawnBanner">
+      <div class="drawn-card-display" id="drawnCardDisplay">—</div>
+      <div class="drawn-banner-text">
+        <div class="drawn-banner-title">✦ 引いたタイル</div>
+        <div class="drawn-banner-sub" id="drawnBannerSub">—</div>
+        <div class="drawn-banner-rev" id="drawnBannerRev"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button class="flip-btn" id="btnFlipDrawn" onclick="flipDrawnTile()" style="display:none;">⟳ ひっくり返す</button>
+          <button class="flip-btn" id="btnCannotPlace" onclick="cannotPlace()" style="display:none;border-color:rgba(224,92,75,0.5);color:var(--accent2);background:rgba(224,92,75,0.06);">捨てる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② カードエリアトリガー -->
+    <button class="card-area-trigger" id="cardAreaTrigger" onclick="toggleCardArea()">
+      <div class="trigger-icon" id="triggerIcon"></div>
+      <div class="trigger-label">カードエリア</div>
+      <div class="trigger-hint">クリックして開く</div>
+    </button>
+
+  </div>
+
+  <!-- ACTION PANEL: hint + 置けないボタンのみ -->
+  <div class="action-panel" id="actionPanel" style="display:none">
+    <span class="action-label">ACTION</span>
+    <span id="actionHint" style="font-size:0.67rem;color:var(--muted);"></span>
+  </div>
+
+  <div class="phase-hint" id="phaseHint" style="display:none"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  ONLINE: WebSocket (PartyKit)
+// ════════════════════════════════════════════
+const PARTYKIT_URL = 'https://numeretto-server.seunggiwe.partykit.dev';
+let ws = null;
+let myName = '';
+let myConnId = null;
+let amIHost = false;
+let currentRoomId = '';
+let intentionalClose = false; // 意図的切断フラグ
+let reconnectTimer = null;
+let heartbeatTimer = null;
+let reconnectAttempt = 0; // バックオフ用カウンタ
+
+// 「接続する」ボタン
+// URLパラメータから自動接続
+(function autoFillRoom(){
+  const params = new URLSearchParams(location.search);
+  const room = params.get('room');
+  const name = params.get('name');
+  // デバッグ: パラメータなしなら何もしない
+  if(!room || !name) return;
+  document.getElementById('roomIdInput').value = room.toUpperCase();
+  document.getElementById('myNameInput').value = name;
+  setTimeout(()=>connectAction(), 0);
+})();
+
+
+// ════════════════════════════════════════════
+//  DEBUG MODE
+// ════════════════════════════════════════════
+let debugNumPlayers = 4;
+const DEBUG_NAMES = ['Alice','Bob','Carol','Dave','Eve','Frank'];
+
+function setDebugPlayers(n){
+  debugNumPlayers = n;
+  document.querySelectorAll('#debugPlayerSeg .btn').forEach((b,i)=>{
+    const on = i === n-2;
+    b.style.background = on ? 'var(--accent)' : 'transparent';
+    b.style.color = on ? '#000' : 'var(--text)';
+  });
+}
+
+function debugStart(){
+  // サーバー接続なし・ローカルでゲーム状態を直接構築
+  myName = DEBUG_NAMES[0]; // 自分は Alice
+  // G を直接初期化
+  const count = debugNumPlayers;
+  const nums = shuffleArray(Array.from({length:100},(_,i)=>i+1));
+  let idx = 0;
+  const HAND_B = getHandBlind(count);
+  const HAND_R = getHandReveal(count);
+  const players = [];
+  for(let i=0;i<count;i++){
+    const hand = nums.slice(idx,idx+HAND_B).map(n=>({tile:makeTile(n),revealed:false}));
+    idx += HAND_B;
+    const revealTiles = nums.slice(idx,idx+HAND_R).map(makeTile);
+    idx += HAND_R;
+    const playerSetupInfo = {currentRevealIdx:0,selectedInHand:false,useRev:false,done:false};
+    players.push({
+      name: DEBUG_NAMES[i],
+      hand,
+      revealTiles,
+      progressHistory:[[0,0]],
+    });
+  }
+  G = {
+    players, currentPlayer:0,
+    pool: nums.slice(idx).map(makeTile),
+    discard:[], round:1, gameOver:false,
+    handSize: HAND_B+HAND_R,
+    direction:1,
+    debugMode: true,
+    // playerSetupsなし → setupフェーズをスキップ
+  };
+  act = null;
+  // オーバーレイを閉じる
+  document.getElementById('titleOverlay').classList.add('hidden');
+  document.getElementById('lobbyOverlay').classList.add('hidden');
+  document.getElementById('gameWrap').style.display='';
+  document.getElementById('centerZone').style.display='';
+  initCardArea();
+  render();
+}
+
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function connectAction(){
+  const name = document.getElementById('myNameInput').value.trim();
+  const room = document.getElementById('roomIdInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('connectError');
+  if(!name){ errEl.textContent='名前を入力してください'; return; }
+  if(!room){ errEl.textContent='合言葉を入力してください'; return; }
+  errEl.textContent='';
+  myName = name;
+  currentRoomId = room;
+  document.getElementById('btnConnect').disabled = true;
+  document.getElementById('btnConnect').textContent = 'CONNECTING…';
+  connectToRoom(room);
+}
+
+// 待合室から退出
+function getRoomUrl(){
+  const base = location.origin + location.pathname;
+  return base + '?room=' + encodeURIComponent(currentRoomId);
+}
+async function copyRoomUrl(){
+  const url = getRoomUrl();
+  try{
+    await navigator.clipboard.writeText(url);
+    const fb = document.getElementById('copyFeedback');
+    const btn = document.getElementById('btnCopyUrl');
+    if(fb){ fb.textContent = '✓ コピーしました！'; setTimeout(()=>fb.textContent='', 2500); }
+    if(btn){ btn.textContent = '✓ コピー完了'; setTimeout(()=>btn.textContent='🔗 URLをコピー', 2500); }
+  } catch(e){
+    // フォールバック
+    const inp = document.createElement('input');
+    inp.value = url;
+    document.body.appendChild(inp);
+    inp.select(); document.execCommand('copy');
+    document.body.removeChild(inp);
+    const fb = document.getElementById('copyFeedback');
+    if(fb){ fb.textContent = '✓ コピーしました！'; setTimeout(()=>fb.textContent='', 2500); }
+  }
+}
+function shareToLine(){
+  const url = getRoomUrl();
+  const text = encodeURIComponent('NUMLETTOで遊ぼう！\n数字並べ対戦ゲーム🎮\n' + url);
+  window.open('https://line.me/R/share?text=' + text, '_blank');
+}
+
+function leaveLobby(){
+  intentionalClose=true;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+  if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+  if(ws){ ws.close(); ws=null; }
+  myName=''; currentRoomId=''; amIHost=false;
+  document.getElementById('lobbyOverlay').classList.add('hidden');
+  document.getElementById('titleOverlay').classList.remove('hidden');
+  document.getElementById('btnConnect').disabled=false;
+  document.getElementById('btnConnect').textContent='ENTER ROOM';
+}
+
+function connectToRoom(roomId) {
+  intentionalClose = false;
+  if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer=null; }
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+  if(ws){ intentionalClose=true; ws.close(); ws=null; }
+  intentionalClose = false;
+  ws = new WebSocket(`${PARTYKIT_URL}/party/${roomId}`);
+
+  ws.onopen = () => {
+    const isReconnect = !!G;
+    ws.send(JSON.stringify({ type: 'join', name: myName, reconnect: isReconnect }));
+    // Heartbeat: 5秒ごとにpingでアイドル切断防止
+    heartbeatTimer = setInterval(()=>{
+      if(ws && ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 5000);
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    // 待合室情報
+    if(msg.type === 'lobby'){
+      // ゲーム中に再接続してlobbyが返ってきた場合はresyncを要求
+      if(G && !msg.hasGame){
+        // サーバー側のGがリセットされてしまった稀なケース → 画面を待合室に戻す
+        showLobby(msg.players, roomId);
+      } else if(G && msg.hasGame){
+        // ゲーム継続中 → サーバーにresync要求
+        ws.send(JSON.stringify({ type: 'resync' }));
+      } else {
+        showLobby(msg.players, roomId);
+      }
+    }
+
+    // ゲーム開始 / アクション同期
+    if(msg.type === 'sync'){
+      if(ws) ws._attempt = 0; reconnectAttempt = 0; // 再接続成功でバックオフリセット
+      const prevAct = act;
+      const prevPlayer = G ? G.currentPlayer : -1;
+      const prevG = G ? {
+        lastLog: G.lastLog ? {t:G.lastLog.t} : null,
+        result: G.result,
+        _hands: G.players ? G.players.map(p=>p.hand.map(h=>({revealed:h.revealed}))) : null
+      } : null;
+      G = msg.G;
+      const inSetup = G.playerSetups && G.playerSetups.some(s=>!s.done);
+      setupPhase = inSetup ? true : null;
+      const newAct = G.act || null;
+
+      // 他人の操作によるSE判定（自分の操作は既に鳴らしている）
+      const isOtherPlayer = myName && G.players[G.currentPlayer] && G.players[G.currentPlayer].name !== myName;
+      if(isOtherPlayer){
+        if(!prevAct && newAct && newAct.phase==='awaitSwap') playSound('draw');
+        else if(prevAct && !newAct && prevPlayer===G.currentPlayer) playSound('place');
+        else if(prevAct && !newAct && prevPlayer!==G.currentPlayer) playSound('place');
+        else if(!prevAct && !newAct && prevPlayer !== G.currentPlayer) {/* ターン変化 */}
+      }
+
+      act = newAct;
+
+      // 自分のターン開始SE（ターンが自分に切り替わった瞬間、またはactが解消して自分のターンになった瞬間）
+      const myPi = myName ? G.players.findIndex(p=>p.name===myName) : -1;
+      if(myPi>=0 && !inSetup && !G.gameOver){
+        const turnJustSwitchedToMe = prevPlayer !== G.currentPlayer && G.currentPlayer === myPi;
+        const actJustClearedOnMyTurn = prevAct && !newAct && G.currentPlayer === myPi;
+        if(turnJustSwitchedToMe || actJustClearedOnMyTurn){
+          playSound('myturn');
+          showTurnBanner(G.players[myPi].name);
+        }
+      }
+
+      document.getElementById('titleOverlay').classList.add('hidden');
+      document.getElementById('lobbyOverlay').classList.add('hidden');
+      document.getElementById('centerZone').style.display = inSetup ? 'none' : '';
+      document.getElementById('actionPanel').style.display = inSetup ? 'none' : '';
+      document.getElementById('phaseHint').style.display = '';
+      document.getElementById('hdrPool').textContent = `ROOM: ${currentRoomId}`;
+      // リザルト同期：G.resultがあれば全員にリザルト画面を表示
+      if(G.result){
+        // 初めてresultを受け取ったときだけSE
+        if(!prevG||!prevG.result){
+          playSound('win'); // 全員で鳴らす
+        }
+        openResult();
+      } else {
+        document.getElementById('resultOverlay').classList.add('hidden');
+      }
+      // 他プレイヤーのログを受信して表示（自分が送ったものは既にlocal appendLog済みなのでスキップ）
+      if(G.lastLog&&(!prevG||!prevG.lastLog||G.lastLog.t!==prevG.lastLog.t)){
+        const fromMe = myName && G.lastLog._from === myName;
+        if(!fromMe) appendLog(G.lastLog.msg, G.lastLog.cls);
+      }
+      // awaitRoulette: 全員にルーレットを表示
+      if(G.act&&G.act.phase==='awaitRoulette'&&G.act.rouletteFinal!=null){
+        const isMe = !myName||G.players[G.currentPlayer].name===myName;
+        if(!isMe){
+          const rModal=document.getElementById('rouletteModal');
+          const prevWasRoulette=prevAct&&prevAct.phase==='awaitRoulette';
+          if(!rModal.classList.contains('show')&&!prevWasRoulette){
+            runRouletteAnim(G.act.rouletteCP, G.act.rouletteFinal, ()=>{});
+          }
+        }
+      }
+      // awaitCoinFlip: 全員にコインフリップを表示
+      if(G.act&&G.act.phase==='awaitCoinFlip'&&G.act.coinResult){
+        const isMe = !myName||G.players[G.currentPlayer].name===myName;
+        if(!isMe){
+          const modal=document.getElementById('effectCardModal');
+          // prevActがawaitCoinFlipでなければ新規表示
+          if(!modal.classList.contains('show')||!prevAct||prevAct.phase!=='awaitCoinFlip'){
+            showCoinFlip(G.act.coinResult==='heads');
+          }
+        }
+      } else if(G.act&&G.act.phase==='awaitDiscardBlind'){
+        // コイン表→裏タイル捨てフェーズ: 観戦者のコインモーダルを閉じる
+        const isMe = !myName||(G.players[G.currentPlayer]&&G.players[G.currentPlayer].name===myName);
+        if(!isMe){
+          const modal=document.getElementById('effectCardModal');
+          if(modal.classList.contains('show')&&document.getElementById('coinFlipDisplay')){
+            closeEffectCardModal();
+          }
+        }
+      } else if(!G.act||G.act.phase!=='awaitCoinFlip'){
+        // コインフリップフェーズ終了 → 観戦者のモーダルを閉じる
+        const isMe = !myName||(G.players[G.currentPlayer]&&G.players[G.currentPlayer].name===myName);
+        if(!isMe){
+          const modal=document.getElementById('effectCardModal');
+          if(modal.classList.contains('show')&&document.getElementById('coinFlipDisplay')){
+            closeEffectCardModal();
+          }
+        }
+      }
+      checkEffectCardSync();
+
+      // 他プレイヤーのアニメーションを検出してフラグを設定
+      if(isOtherPlayer && prevG && prevG._hands){
+        const cp = G.currentPlayer;
+        const prevHand = prevG._hands[cp];
+        const newHand  = G.players[cp].hand;
+        if(prevHand && newHand){
+          if(prevHand.length === newHand.length){
+            // 同じ長さ → スワップ（裏→表に変わったスロット）
+            for(let i=0;i<newHand.length;i++){
+              if(!prevHand[i].revealed && newHand[i].revealed){
+                swapAnim={pi:cp, hi:i}; break;
+              }
+            }
+          } else if(newHand.length > prevHand.length){
+            // 長さ増加 → 差し込み（新たに revealed:true になったスロット）
+            for(let i=0;i<newHand.length;i++){
+              if(newHand[i].revealed && (!prevHand[i] || !prevHand[i].revealed)){
+                insertAnim={pi:cp, hi:i}; break;
+              }
+            }
+          }
+        }
+      }
+
+      render();
+    }
+
+    // リセット
+    if(msg.type === 'reset'){
+      G = null; setupPhase = null; act = null;
+      document.getElementById('lobbyOverlay').classList.remove('hidden');
+    }
+  };
+
+  ws.onerror = () => {
+    // onerrorは常にoncloseの直前に発火するので、ここでは何もしない
+    // 処理はoncloseに一元化する
+  };
+  ws.onclose = (e) => {
+    if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+    if(intentionalClose){ intentionalClose=false; return; }
+
+    if(!myName || !currentRoomId){
+      // 接続前のエラー（合言葉入力画面）
+      const errEl = document.getElementById('connectError');
+      if(errEl) errEl.textContent = '接続に失敗しました。通信環境を確認してください。';
+      document.getElementById('btnConnect').disabled = false;
+      document.getElementById('btnConnect').textContent = 'ENTER ROOM';
+      return;
+    }
+
+    // ゲーム中/待合室中 → 自動再接続（バックオフ付き）
+    reconnectAttempt++;
+    let delay = reconnectAttempt > 3 ? 8000 : reconnectAttempt > 1 ? 4000 : 2000;
+
+    log(`接続が切れました。${delay/1000}秒後に再接続… (${reconnectAttempt}回目)`, 'error');
+    reconnectTimer = setTimeout(()=>{
+      connectToRoom(currentRoomId);
+    }, delay);
+  };
+  return ws;
+}
+
+function showLobby(players, roomId){
+  // タイトル→待合室へ
+  document.getElementById('titleOverlay').classList.add('hidden');
+  document.getElementById('lobbyOverlay').classList.remove('hidden');
+  document.getElementById('lobbyRoomLabel').textContent = `— 合言葉: ${roomId} —`;
+
+  // 自分がホストか（players配列の先頭がホスト）
+  amIHost = players.length > 0 && players[0].isHost && players[0].name === myName;
+
+  // プレイヤーリスト描画
+  const list = document.getElementById('lobbyPlayerList');
+  list.innerHTML = '';
+  players.forEach(p => {
+    const isMe = p.name === myName;
+    const div = document.createElement('div');
+    div.className = `lobby-player${isMe?' is-me':''}`;
+    div.innerHTML = `
+      <span class="lp-name">${p.name}</span>
+      ${p.isHost ? '<span class="lp-host">HOST</span>' : ''}
+      ${isMe ? '<span class="lp-you">YOU</span>' : ''}`;
+    list.appendChild(div);
+  });
+
+  // ホストにだけ「ゲーム開始」ボタンを表示
+  const btnStart = document.getElementById('btnStartGame');
+  const waitMsg = document.getElementById('lobbyWaitMsg');
+  if(amIHost){
+    btnStart.style.display = '';
+    btnStart.textContent = `ゲーム開始 (${players.length}人) →`;
+    btnStart.disabled = players.length < 2;
+    waitMsg.style.display = 'none';
+  } else {
+    btnStart.style.display = 'none';
+    waitMsg.style.display = '';
+  }
+}
+
+// ホストがゲーム開始
+function hostStartGame(){
+  if(!amIHost || !ws) return;
+
+  // 待合室のプレイヤーリストから名前を取得してG生成（順番をシャッフル）
+  const items = document.getElementById('lobbyPlayerList').querySelectorAll('.lp-name');
+  const names = shuffle([...items].map(el => el.textContent.trim()));
+  const count = names.length;
+
+  const nums = shuffle([...Array(100)].map((_,i)=>i+1));
+  let idx = 0;
+  const HAND_BLIND = getHandBlind(count);
+  const HAND_REVEAL = getHandReveal(count);
+  const players = [];
+  for(let p = 0; p < count; p++){
+    const hand = nums.slice(idx, idx+HAND_BLIND).map(n=>({tile:makeTile(n),revealed:false}));
+    idx += HAND_BLIND;
+    const revealTiles = nums.slice(idx, idx+HAND_REVEAL).map(makeTile);
+    idx += HAND_REVEAL;
+    revealTiles.sort((a,b)=>a.num-b.num);
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0,progressHistory:[[0,0]]});
+  }
+  // playerSetups: 全員同時に準備フェーズを進める
+  const playerSetups = players.map(()=>({
+    currentRevealIdx:0, selectedInHand:false, useRev:false, done:false
+  }));
+  act = null;
+  G = {
+    players, currentPlayer:0,
+    pool:nums.slice(idx).map(makeTile),
+    discard:[], round:1, gameOver:false,
+    handSize:HAND_BLIND+HAND_REVEAL,
+    playerSetups,
+    direction:1, // 1=正回転, -1=逆回転
+  };
+  act = null;
+
+  ws.send(JSON.stringify({ type: 'start', G }));
+}
+
+function syncToServer(type='action'){
+  if(G && G.debugMode) return; // デバッグモード: sync不要
+  if(ws && ws.readyState === WebSocket.OPEN){
+    // actをGに埋め込んでから送信
+    G.act = act || null;
+    ws.send(JSON.stringify({type, G}));
+  }
+}
+
+// ════════════════════════════════════════════
+//  SOUND ENGINE (Web Audio API)
+// ════════════════════════════════════════════
+let AC = null; // 初回操作時に初期化（ブラウザのAutoplay Policy対策）
+let masterVolume = 0.7;
+function ensureAC(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(AC&&AC.state==='suspended') AC.resume();
+}
+
+function setVolume(v){
+  masterVolume = parseFloat(v);
+  const icon = document.getElementById('volIcon');
+  if(icon) icon.textContent = masterVolume === 0 ? '🔇' : masterVolume < 0.4 ? '🔉' : '🔊';
+}
+
+function playSound(type){
+  ensureAC();
+  if(!AC) return;
+  const t = AC.currentTime;
+
+  const sounds = {
+    draw: ()=>{
+      // カードをめくる音: 極めてソフトなタッチ音
+      // 超低ゲインのホワイトノイズ（紙の質感、割れなし）
+      const buf = AC.createBuffer(1, AC.sampleRate*0.15, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++){
+        const env = Math.pow(1 - i/d.length, 4);
+        d[i] = (Math.random()*2-1) * env * 0.3;
+      }
+      const src = AC.createBufferSource(); src.buffer=buf;
+      const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=800; lp.Q.value=0.5;
+      const g = AC.createGain(); g.gain.setValueAtTime(0.07*masterVolume, t);
+      src.connect(lp); lp.connect(g); g.connect(AC.destination); src.start(t);
+      // 柔らかいサイン波の小さなぽん音（220Hz、超短め）
+      const osc = AC.createOscillator(); const og = AC.createGain();
+      osc.type='sine'; osc.frequency.value=260;
+      og.gain.setValueAtTime(0,t);
+      og.gain.linearRampToValueAtTime(0.06*masterVolume, t+0.015);
+      og.gain.exponentialRampToValueAtTime(0.001, t+0.12);
+      osc.connect(og); og.connect(AC.destination); osc.start(t); osc.stop(t+0.13);
+    },
+    place: ()=>{
+      // タイルを置く音: コツッという打撃音
+      const osc = AC.createOscillator();
+      const g = AC.createGain();
+      osc.type='triangle'; osc.frequency.setValueAtTime(300,t); osc.frequency.exponentialRampToValueAtTime(80,t+0.12);
+      g.gain.setValueAtTime(0.25*masterVolume,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+      osc.connect(g); g.connect(AC.destination); osc.start(t); osc.stop(t+0.13);
+    },
+    bonus: ()=>{
+      // 連番ボーナス: 上昇アルペジオ
+      [523,659,784,1047].forEach((freq,i)=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sine'; osc.frequency.value=freq;
+        const st=t+i*0.08;
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.18*masterVolume,st+0.02);
+        g.gain.linearRampToValueAtTime(0,st+0.1);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.12);
+      });
+    },
+    discard: ()=>{
+      // 捨てる: 低めのシュッという音
+      const buf = AC.createBuffer(1, AC.sampleRate*0.1, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.5)*0.5;
+      const src=AC.createBufferSource(); src.buffer=buf;
+      const g=AC.createGain(); g.gain.setValueAtTime(0.12*masterVolume,t);
+      const filt=AC.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=600;
+      src.connect(filt); filt.connect(g); g.connect(AC.destination); src.start(t);
+    },
+    error: ()=>{
+      // エラー: 低いブザー2回
+      [0,0.12].forEach(delay=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sawtooth'; osc.frequency.value=120;
+        const st=t+delay;
+        g.gain.setValueAtTime(0.15*masterVolume,st); g.gain.linearRampToValueAtTime(0,st+0.08);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.09);
+      });
+    },
+    effectcard: ()=>{
+      // 効果カード出現SE: キラキラ上昇音
+      [0,0.07,0.14,0.21].forEach((delay,i)=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sine';
+        osc.frequency.value=[523,659,784,1047][i];
+        g.gain.setValueAtTime(0,t+delay);
+        g.gain.linearRampToValueAtTime(0.12*masterVolume,t+delay+0.03);
+        g.gain.exponentialRampToValueAtTime(0.001,t+delay+0.25);
+        osc.connect(g); g.connect(AC.destination);
+        osc.start(t+delay); osc.stop(t+delay+0.26);
+      });
+    },
+    coin: ()=>{
+      // コインフリップSE: チャリン回転音
+      [0,0.05,0.1,0.15,0.2,0.25].forEach((d,i)=>{
+        const o=AC.createOscillator(); const g=AC.createGain();
+        o.type='sine';
+        o.frequency.value=1200-i*80;
+        g.gain.setValueAtTime(0,t+d);
+        g.gain.linearRampToValueAtTime(0.09*masterVolume,t+d+0.01);
+        g.gain.exponentialRampToValueAtTime(0.001,t+d+0.12);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t+d); o.stop(t+d+0.13);
+      });
+    },
+    omaeno: ()=>{
+      // お前のものは俺の物SE: 控えめなポップ音
+      const o=AC.createOscillator(); const g=AC.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(440,t);
+      o.frequency.linearRampToValueAtTime(660,t+0.08);
+      g.gain.setValueAtTime(0.07*masterVolume,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.connect(g); g.connect(AC.destination);
+      o.start(t); o.stop(t+0.19);
+    },
+    rouletteClick: ()=>{
+      // ルーレットSE: 軽いカチッ音
+      const buf=AC.createBuffer(1,AC.sampleRate*0.03,AC.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)*0.3;
+      const src=AC.createBufferSource(); src.buffer=buf;
+      const g=AC.createGain(); g.gain.value=0.04*masterVolume;
+      const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2000;
+      src.connect(hp); hp.connect(g); g.connect(AC.destination); src.start(t);
+    },
+    kousoku: ()=>{
+      // 高速回転SE: 急上昇→急降下のピッチ＋ウィーン音
+      const osc=AC.createOscillator(); const g=AC.createGain();
+      osc.type='sawtooth';
+      osc.frequency.setValueAtTime(80,t);
+      osc.frequency.linearRampToValueAtTime(1600,t+0.18);
+      osc.frequency.linearRampToValueAtTime(80,t+0.36);
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.18*masterVolume,t+0.05);
+      g.gain.linearRampToValueAtTime(0,t+0.4);
+      const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2000;
+      osc.connect(lp); lp.connect(g); g.connect(AC.destination);
+      osc.start(t); osc.stop(t+0.42);
+      // 逆回転を示すピッチ降下音
+      const osc2=AC.createOscillator(); const g2=AC.createGain();
+      osc2.type='sine';
+      osc2.frequency.setValueAtTime(800,t+0.3);
+      osc2.frequency.linearRampToValueAtTime(200,t+0.7);
+      g2.gain.setValueAtTime(0,t+0.3);
+      g2.gain.linearRampToValueAtTime(0.12*masterVolume,t+0.35);
+      g2.gain.linearRampToValueAtTime(0,t+0.75);
+      osc2.connect(g2); g2.connect(AC.destination);
+      osc2.start(t+0.3); osc2.stop(t+0.76);
+    },
+    donguri: ()=>{
+      // どんぐりころころSE: 重いドスン＋ひっくり返る感触
+      // ドスン低音
+      const o1=AC.createOscillator(); const g1=AC.createGain();
+      o1.type='sine'; o1.frequency.setValueAtTime(180,t);
+      o1.frequency.exponentialRampToValueAtTime(40,t+0.3);
+      g1.gain.setValueAtTime(0.2*masterVolume,t);
+      g1.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+      o1.connect(g1); g1.connect(AC.destination); o1.start(t); o1.stop(t+0.36);
+      // 回転感のあるピッチ変動
+      [0.08,0.18,0.28].forEach((delay,i)=>{
+        const o=AC.createOscillator(); const g=AC.createGain();
+        o.type='triangle';
+        o.frequency.setValueAtTime(300+i*80,t+delay);
+        o.frequency.linearRampToValueAtTime(100+i*40,t+delay+0.12);
+        g.gain.setValueAtTime(0,t+delay);
+        g.gain.linearRampToValueAtTime(0.08*masterVolume,t+delay+0.02);
+        g.gain.exponentialRampToValueAtTime(0.001,t+delay+0.14);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t+delay); o.stop(t+delay+0.15);
+      });
+    },
+    win: ()=>{
+      // 勝利: ファンファーレ
+      const melody=[523,523,523,659,523,659,784];
+      const times=[0,0.18,0.36,0.54,0.72,0.82,0.92];
+      melody.forEach((freq,i)=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='square'; osc.frequency.value=freq;
+        const st=t+times[i];
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.15*masterVolume,st+0.02);
+        g.gain.linearRampToValueAtTime(0,st+0.15);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.16);
+      });
+    },
+    myturn: ()=>{
+      // 自分のターン開始: 短い上昇2音
+      [[523,0],[784,0.1]].forEach(([freq,delay])=>{
+        const osc=AC.createOscillator(); const g=AC.createGain();
+        osc.type='sine'; osc.frequency.value=freq;
+        const st=t+delay;
+        g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(0.2*masterVolume,st+0.015);
+        g.gain.linearRampToValueAtTime(0,st+0.1);
+        osc.connect(g); g.connect(AC.destination); osc.start(st); osc.stop(st+0.11);
+      });
+    },
+  };
+  if(sounds[type]) sounds[type]();
+}
+
+// ════════════════════════════════════════════
+//  CONSTANTS & GLOBALS
+// ════════════════════════════════════════════
+// 人数別配布枚数
+function getHandBlind(count)  { return count <= 4 ? 17 : count === 5 ? 14 : 11; }
+function getHandReveal(count) { return count <= 4 ? 5 : 4; }
+function getHandSize(count)   { return getHandBlind(count) + getHandReveal(count); }
+
+let G          = null;
+let setupPhase = null;
+let act        = null;
+let insertAnim  = null; // {pi, hi} 差し込みアニメ対象
+let swapAnim    = null; // {pi, hi} スワップアニメ対象
+let donguriAnim = null; // {pi, hi} どんぐりころころアニメ対象
+
+// ════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════
+function calcRev(n) {
+  // 1の位が0 → 逆さにすると先頭0になるため無効
+  if(n % 10 === 0) return null;
+  const map={'0':'0','1':'1','6':'9','8':'8','9':'6'};
+  const s=String(n);
+  for(const c of s) if(!(c in map)) return null;
+  const r=parseInt(s.split('').reverse().map(c=>map[c]).join(''));
+  return r!==n?r:null;
+}
+function makeTile(n){return{num:n,rev:calcRev(n)};}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function ts(){const n=new Date();return`${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;}
+function log(msg,cls=''){
+  // Gに乗せて全員に配信
+  if(typeof G!=='undefined'&&G){
+    G.lastLog={msg,cls,t:Date.now(),_from:myName||null};
+  }
+  appendLog(msg,cls);
+}
+function appendLog(msg,cls=''){
+  const lw=document.getElementById('logWrap');if(!lw)return;
+  const d=document.createElement('div');d.className=`log-entry ${cls}`;
+  d.innerHTML=`<span class="ts">${ts()}</span>${msg}`;
+  lw.insertBefore(d,lw.firstChild);
+  while(lw.children.length>4)lw.removeChild(lw.lastChild);
+}
+
+// ════════════════════════════════════════════
+//  GAME START (ホストのみ hostStartGame() で実行)
+// ════════════════════════════════════════════
+
+
+// ════════════════════════════════════════════
+//  CARD AREA (引き出しドロワー)
+// ════════════════════════════════════════════
+let cardAreaOpen = false;
+// タイルの散らばり座標（相対値 0〜1）
+// G.pool / G.discard のインデックスと対応
+let scatterPool = [];    // [{rx,ry,rot,z}, ...]  G.poolと同順
+let scatterDiscard = []; // [{rx,ry,rot,z}, ...]  G.discardと同順
+
+const SCATTER_PAD = 0.06;
+const SCATTER_TW = 48, SCATTER_TH = 60;
+const OVERLAP_LIMIT = 0.35;
+
+function initCardArea(){
+  // ドロワー高さを設定
+  const h = Math.round(window.innerHeight / 3);
+  document.documentElement.style.setProperty('--drawer-h', h + 'px');
+  document.documentElement.style.setProperty('--header-h', '38px');
+  // トリガーアイコン描画
+  renderTriggerIcon();
+  // pool座標初期化
+  if(G && G.pool){
+    scatterPool = G.pool.map(()=>randomScatterCoord());
+  }
+  if(G && G.discard){
+    scatterDiscard = G.discard.map(()=>randomScatterCoord());
+  }
+  renderCardArea();
+}
+
+function randomScatterCoord(){
+  return {
+    rx: randF(SCATTER_PAD, 1-SCATTER_PAD),
+    ry: randF(SCATTER_PAD, 1-SCATTER_PAD),
+    rot: randF(-20, 20),
+    z: Math.floor(randF(1,15))
+  };
+}
+function randF(a,b){return Math.random()*(b-a)+a;}
+
+function toggleCardArea(){
+  cardAreaOpen = !cardAreaOpen;
+  document.getElementById('cardAreaDrawer').classList.toggle('open', cardAreaOpen);
+  if(cardAreaOpen) renderCardArea();
+}
+
+// scatter座標がG.poolと同期しているか確認・補完
+function syncScatterToPool(){
+  if(!G || !G.pool) return;
+  while(scatterPool.length < G.pool.length) scatterPool.push(randomScatterCoord());
+  scatterPool = scatterPool.slice(0, G.pool.length);
+}
+function syncScatterToDiscard(){
+  if(!G || !G.discard) return;
+  while(scatterDiscard.length < G.discard.length){
+    // 新しく捨てられたタイルの座標は後で設定されるのでダミーを入れる
+    scatterDiscard.push(randomScatterCoord());
+  }
+  scatterDiscard = scatterDiscard.slice(0, G.discard.length);
+}
+
+function renderCardArea(){
+  syncScatterToPool();
+  syncScatterToDiscard();
+  const scatter = document.getElementById('cardScatter');
+  if(!scatter) return;
+  const W = scatter.clientWidth, H = scatter.clientHeight;
+  if(!W || !H) return;
+  scatter.querySelectorAll('.scatter-tile,.scatter-who-el').forEach(e=>e.remove());
+
+  const cp = G ? G.currentPlayer : -1;
+  const isMyTurnNow = !myName || (G && G.players[cp] && G.players[cp].name === myName);
+  const canDraw = isMyTurnNow && !act && G && !G.gameOver;
+  const canIkka = isMyTurnNow && act && act.phase === 'awaitIkkaPool';
+
+  // 山札タイル
+  if(G && G.pool){
+    G.pool.forEach((tile, pi)=>{
+      const sc = scatterPool[pi] || randomScatterCoord();
+      const x = sc.rx*(W-SCATTER_TW), y = sc.ry*(H-SCATTER_TH);
+      const el = document.createElement('div');
+      el.className = 'scatter-tile pool-tile' + (canIkka?' ikka-target':'');
+      el.style.cssText = `left:${x}px;top:${y}px;z-index:${sc.z};--rot:${sc.rot}deg;transform:rotate(${sc.rot}deg);`;
+      if(canDraw){ const _pi=pi; el.onclick=()=>{ toggleCardArea(); flipPoolTile(_pi,el); }; }
+      if(canIkka){ const _pi=pi; el.onclick=()=>ikkaSelectPool(_pi); }
+      scatter.appendChild(el);
+    });
+  }
+
+  // 捨て場タイル
+  if(G && G.discard){
+    G.discard.forEach((entry, di)=>{
+      const sc = scatterDiscard[di] || randomScatterCoord();
+      const x = sc.rx*(W-SCATTER_TW), y = sc.ry*(H-SCATTER_TH);
+      const canTake = isMyTurnNow && !act && G && !G.gameOver;
+      const canIkkaDiscard = isMyTurnNow && act && act.phase === 'awaitIkkaPool' && !entry.faceUp;
+      const showFace = entry.faceUp === true;
+      let unplaceable = false;
+      if(showFace && canTake && G){
+        const hand = G.players[cp].hand;
+        const blindIdxList = hand.map((h,i)=>h.revealed?-1:i).filter(i=>i>=0);
+        unplaceable = !blindIdxList.some(hi=>{
+          const t=entry.tile;
+          return canFit(hand,hi,t.num)||(t.rev&&canFit(hand,hi,t.rev));
+        });
+      }
+      const el = document.createElement('div');
+      el.className = 'scatter-tile discard-tile'
+        + (canTake&&!unplaceable?' takeable':'')
+        + (unplaceable?' unplaceable':'')
+        + (canIkkaDiscard?' ikka-target':'');
+      el.style.cssText = `left:${x}px;top:${y}px;z-index:${sc.z};--rot:${sc.rot}deg;transform:rotate(${sc.rot}deg);`;
+      el.textContent = showFace ? entry.tile.num : '';
+      if(entry.isNew){ const dot=document.createElement('div');dot.className='new-dot';el.appendChild(dot); }
+      if(canTake&&!unplaceable){ const _di=di; el.onclick=()=>{ toggleCardArea(); takeDiscard(_di); }; }
+      if(canIkkaDiscard){ const _di=di; el.onclick=()=>ikkaSelectDiscard(_di); }
+      // 名前ラベル
+      const who = document.createElement('div');
+      who.className='scatter-who scatter-who-el';
+      who.textContent = entry.discardedBy || '？';
+      who.style.cssText=`position:absolute;left:${x}px;top:${y+SCATTER_TH+2}px;z-index:${sc.z};font-size:0.42rem;color:var(--muted);white-space:nowrap;pointer-events:none;transform:translateX(0);`;
+      scatter.appendChild(el);
+      scatter.appendChild(who);
+    });
+  }
+}
+
+// ── ドラッグ&ドロップで捨てる ──
+let _dragState = null;
+
+function initHandDrag(){
+  // 自分の手札タイルにドラッグイベントを付与（renderGame内で呼ぶ）
+}
+
+function startTileDrag(e, hi, num){
+  if(e.button !== 0) return;
+  e.preventDefault();
+  const ghost = document.getElementById('dragGhost');
+  ghost.textContent = num;
+  ghost.style.opacity = '1';
+  ghost.style.left = (e.clientX-24)+'px';
+  ghost.style.top  = (e.clientY-30)+'px';
+  ghost.style.transform = `rotate(${randF(-12,12)}deg)`;
+  _dragState = {hi, num};
+  document.addEventListener('mousemove', _onDragMove);
+  document.addEventListener('mouseup',   _onDragEnd);
+}
+function _onDragMove(e){
+  if(!_dragState) return;
+  const ghost=document.getElementById('dragGhost');
+  ghost.style.left=(e.clientX-24)+'px';
+  ghost.style.top =(e.clientY-30)+'px';
+  const drawer=document.getElementById('cardAreaDrawer');
+  const rect=drawer.getBoundingClientRect();
+  const over=cardAreaOpen&&e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  drawer.style.outline=over?'2px dashed rgba(232,212,77,0.35)':'';
+}
+function _onDragEnd(e){
+  if(!_dragState) return;
+  document.removeEventListener('mousemove',_onDragMove);
+  document.removeEventListener('mouseup',  _onDragEnd);
+  const ghost=document.getElementById('dragGhost');
+  ghost.style.opacity='0';
+  document.getElementById('cardAreaDrawer').style.outline='';
+  const scatter=document.getElementById('cardScatter');
+  const rect=scatter.getBoundingClientRect();
+  const inZone=cardAreaOpen&&e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  if(inZone){
+    // ドロップ座標を相対値に変換
+    let rx=Math.max(SCATTER_PAD,Math.min((e.clientX-rect.left-SCATTER_TW/2)/(rect.width-SCATTER_TW),1-SCATTER_PAD));
+    let ry=Math.max(SCATTER_PAD,Math.min((e.clientY-rect.top -SCATTER_TH/2)/(rect.height-SCATTER_TH),1-SCATTER_PAD));
+    // 干渉チェック
+    const placed=scatterFindFreeSpot(rx,ry,scatterPool.concat(scatterDiscard),rect.width,rect.height);
+    // G.discard に追加する座標を記録
+    scatterDiscard.push({rx:placed.rx,ry:placed.ry,rot:randF(-20,20),z:50+scatterDiscard.length});
+    // 実際の捨て処理を呼ぶ
+    cannotPlace();
+  }
+  render();
+  _dragState=null;
+}
+
+function scatterOverlapRatio(ax,ay,bx,by){
+  const ox=Math.max(0,Math.min(ax+SCATTER_TW,bx+SCATTER_TW)-Math.max(ax,bx));
+  const oy=Math.max(0,Math.min(ay+SCATTER_TH,by+SCATTER_TH)-Math.max(ay,by));
+  return (ox*oy)/(SCATTER_TW*SCATTER_TH);
+}
+function scatterFindFreeSpot(rx,ry,existing,W,H){
+  const check=(crx,cry)=>{
+    const cx=crx*(W-SCATTER_TW),cy=cry*(H-SCATTER_TH);
+    return existing.every(t=>{
+      const tx=t.rx*(W-SCATTER_TW),ty=t.ry*(H-SCATTER_TH);
+      return scatterOverlapRatio(cx,cy,tx,ty)<=OVERLAP_LIMIT;
+    });
+  };
+  if(check(rx,ry)) return {rx,ry};
+  const step=0.06;
+  for(let r=step;r<0.8;r+=step){
+    const tries=Math.max(8,Math.round(2*Math.PI*r/step));
+    for(let i=0;i<tries;i++){
+      const angle=(2*Math.PI*i/tries)+randF(0,0.3);
+      const cx=Math.min(Math.max(rx+Math.cos(angle)*r,SCATTER_PAD),1-SCATTER_PAD);
+      const cy=Math.min(Math.max(ry+Math.sin(angle)*r,SCATTER_PAD),1-SCATTER_PAD);
+      if(check(cx,cy)) return {rx:cx,ry:cy};
+    }
+  }
+  return {rx,ry};
+}
+
+function renderTriggerIcon(){
+  const icon=document.getElementById('triggerIcon');
+  if(!icon) return;
+  icon.innerHTML='';
+  [-18,-8,2,12,22].forEach((a,i)=>{
+    const el=document.createElement('div');
+    el.className='trigger-mini-tile';
+    el.style.cssText=`left:${i*10}px;top:${Math.abs(a)*0.3}px;transform:rotate(${a}deg);z-index:${i};`;
+    icon.appendChild(el);
+  });
+}
+
+window.addEventListener('resize',()=>{
+  const h=Math.round(window.innerHeight/3);
+  document.documentElement.style.setProperty('--drawer-h',h+'px');
+  if(cardAreaOpen) renderCardArea();
+});
+
+// ════════════════════════════════════════════
+//  MASTER RENDER
+// ════════════════════════════════════════════
+function render(){
+  const inSetup=G&&G.playerSetups&&G.playerSetups.some(s=>!s.done);
+  if(inSetup){setupPhase=true;renderSetup();}else{setupPhase=null;renderGame();}
+}
+
+// ════════════════════════════════════════════
+//  SETUP PHASE
+// ════════════════════════════════════════════
+function renderSetup(){
+  document.getElementById('centerZone').style.display='none';
+  document.getElementById('actionPanel').style.display='none';
+  document.getElementById('phaseHint').style.display='';
+  clearPlayerZones();
+
+  // 自分のプレイヤーインデックスを特定
+  const myPi = myName ? G.players.findIndex(p=>p.name===myName) : 0;
+
+  G.players.forEach((player,pi)=>{
+    const sp = G.playerSetups[pi];
+    const isMe = pi===myPi;
+    const isDone = sp.done;
+    const div=document.createElement('div');
+    div.className=`player-zone${isMe?' active-player':''}`;
+    let badge;
+    if(isDone) badge=`<span class="badge badge-yellow">配置完了 ✓</span>`;
+    else if(isMe) badge=`<span class="badge badge-red">配置中 — ${sp.currentRevealIdx+1}枚目 / ${player.revealTilesTotal}枚</span>`;
+    else badge=`<span class="badge badge-muted">配置中…</span>`;
+
+    div.style.display='block';
+    div.style.paddingLeft='24px';
+    div.innerHTML=`
+      <div class="player-header"><span class="player-name">${player.name}</span>${badge}</div>
+      <div class="tile-row" id="tileRow${pi}"></div>
+      ${isMe&&!isDone?`<div class="setup-panel">
+        <div class="setup-panel-label">今配置するタイル（クリックして選択 → ↓スロットに差し込む）：</div>
+        <div class="reveal-hand" id="revealHand${pi}"></div>
+      </div>`:''}`;
+    insertPlayerZone(div);
+
+    // 手札表示（gap slotつき）
+    const tileRow=div.querySelector(`#tileRow${pi}`);
+    const showG=isMe&&!isDone&&sp.selectedInHand;
+    for(let i=0;i<=player.hand.length;i++){
+      const g=document.createElement('div');
+      g.className=`gap-slot${showG?' droppable':''}`;
+      g.textContent=showG?'↓':'';
+      if(showG){const gi=i;g.onclick=()=>insertRevealTile(pi,gi);}
+      tileRow.appendChild(g);
+      if(i<player.hand.length){
+        const h=player.hand[i];
+        const el=document.createElement('div');
+        el.className=`tile ${h.revealed?'face-up':'face-down'}${h.tile&&h.tile.wild?' wild-tile':''}`;
+        el.textContent=h.revealed?h.tile.num:'';
+        if(insertAnim && insertAnim.pi===pi && insertAnim.hi===i){
+          el.classList.add('just-inserted');
+          insertAnim=null;
+        }
+        tileRow.appendChild(el);
+      }
+    }
+
+    // 自分の操作パネル
+    if(isMe&&!isDone){
+      const curTile=player.revealTiles[sp.currentRevealIdx];
+      const rh=div.querySelector(`#revealHand${pi}`);
+      const useRev=sp.useRev===true;
+      const displayNum=useRev&&curTile.rev?curTile.rev:curTile.num;
+      const el=document.createElement('div');
+      el.className=`tile face-up to-place${sp.selectedInHand?' src-selected':''}`;
+      el.textContent=displayNum;
+      el.title=curTile.rev?`逆さで使用: ${curTile.rev}`:'';
+      el.onclick=()=>{ ensureAC(); sp.selectedInHand=!sp.selectedInHand; syncToServer(); render(); };
+      rh.appendChild(el);
+      if(curTile.rev){
+        const fb=document.createElement('button');
+        fb.className='flip-btn';fb.style.marginLeft='8px';
+        fb.textContent=useRev?`⟳ 正向き (${curTile.num})`:`⟳ ひっくり返す (→${curTile.rev})`;
+        fb.onclick=(e)=>{e.stopPropagation();ensureAC();sp.useRev=!sp.useRev;syncToServer();render();};
+        rh.appendChild(fb);
+      }
+    }
+  });
+
+  const myPl=G.players[myPi];
+  const mySp=G.playerSetups[myPi];
+  const ph=document.getElementById('phaseHint');
+  if(mySp.done){
+    ph.textContent='✅ あなたの配置は完了。他のプレイヤーを待っています…';
+  }else{
+    const cur=myPl.revealTiles[mySp.currentRevealIdx];
+    ph.textContent=mySp.selectedInHand
+      ?`📌 [${mySp.useRev&&cur.rev?cur.rev:cur.num}] を選択中。↓ スロットをクリックして差し込んでください。`
+      :`📌 オレンジのタイル [${cur.num}] をクリックして選択してください。`;
+  }
+  const doneCount=G.playerSetups.filter(s=>s.done).length;
+  document.getElementById('hdrTurn').textContent='SETUP';
+  document.getElementById('hdrRound').textContent=`準備完了 ${doneCount}/${G.players.length}人`;
+  document.getElementById('hdrPool').textContent=`POOL: ${G.pool.length}`;
+}
+
+function insertRevealTile(pi, gapIdx){
+  if(!G||!G.playerSetups)return;
+  const sp=G.playerSetups[pi];
+  if(!sp||!sp.selectedInHand||sp.done)return;
+  if(myName && G.players[pi].name !== myName)return;
+
+  const player=G.players[pi];
+  const rawTile=player.revealTiles[sp.currentRevealIdx];
+  const useRev=sp.useRev===true&&rawTile.rev!=null;
+  const tile=useRev?{num:rawTile.rev,rev:rawTile.num}:rawTile;
+
+  // ── 昇順チェック: gapの左右の表タイルと大小比較 ──
+  const hand=player.hand;
+  let L=-Infinity, R=Infinity;
+  for(let i=gapIdx-1;i>=0;i--){if(hand[i].revealed){L=hand[i].tile.num;break;}}
+  for(let i=gapIdx;i<hand.length;i++){if(hand[i].revealed){R=hand[i].tile.num;break;}}
+  if(tile.num<=L||tile.num>=R){
+    playSound('error');
+    log(`[${tile.num}] はここに置けません（昇順: ${L===- Infinity?'—':L} < ? < ${R===Infinity?'—':R}）`,'error');
+    return;
+  }
+
+  player.hand.splice(gapIdx,0,{tile,revealed:true});
+  sp.selectedInHand=false;
+  sp.useRev=false;
+  insertAnim={pi, hi:gapIdx};
+  playSound('place');
+  log(`${player.name}: [${tile.num}] を位置 ${gapIdx+1} に挿入。`);
+  sp.currentRevealIdx++;
+  if(sp.currentRevealIdx>=player.revealTilesTotal){
+    delete player.revealTiles;
+    sp.done=true;
+    log(`${player.name} の配置完了！`,'highlight');
+  }
+
+  // 全員完了チェック
+  if(G.playerSetups.every(s=>s.done)){
+    delete G.playerSetups;
+    setupPhase=null;
+    G.currentPlayer=0;G.round=1;
+    document.getElementById('actionPanel').style.display='';
+    document.getElementById('centerZone').style.display='';
+  initCardArea();
+    log('全員の配置完了！ゲームスタート！','highlight');
+    syncToServer();
+    render();return;
+  }
+  syncToServer();
+  render();
+}
+
+// ════════════════════════════════════════════
+//  MAIN GAME RENDER
+// ════════════════════════════════════════════
+function renderGame(){
+  const cp=G.currentPlayer;
+  document.getElementById('centerZone').style.display='';
+  clearPlayerZones();
+
+  // Player zones
+  G.players.forEach((player,pi)=>{
+    const isActive=pi===cp&&!G.gameOver;
+    const div=document.createElement('div');
+    div.className=`player-zone${isActive?' active-player':''}`;
+    const revealed=player.hand.filter(h=>h.revealed).length;
+    const blindCount=player.hand.filter(h=>!h.revealed).length;
+    const pct=player.hand.length>0?(revealed/player.hand.length*100).toFixed(0):100;
+    // 裏タイル移動可能条件: 裏タイル>=1枚 かつ アクション待機中でない
+    const isMyTurn=isActive&&(!myName||G.players[pi].name===myName);
+    const canMoveBlind=isMyTurn&&!act&&!G.gameOver&&blindCount>=1;
+    const canPass=isMyTurn&&!act&&!G.gameOver;
+    const dir=G.direction||1;
+    const arrowChar = dir===1 ? '↓' : '↑';
+    div.innerHTML=`
+      <div class="player-header-row">
+        <span class="turn-arrow${isActive?' active':''}"> ${arrowChar} </span>
+        <div class="player-header-main">
+        <div class="player-header">
+          <span class="player-name">${player.name}</span>
+          ${isActive?`<span class="badge badge-yellow">YOUR TURN</span>`:''}
+          <span class="player-progress">${revealed}/${player.hand.length}</span>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+        </div>
+      </div>
+      <div class="tile-row" id="tileRow${pi}"></div>
+      ${isActive?(()=>{
+        const isMovePhase=act&&(act.phase==='awaitMoveBlind'||act.phase==='awaitMoveInsert');
+        if(isMovePhase){
+          return `<div class="player-action-bar">
+            <button class="btn-sm accent" onclick="cancelAction()">キャンセル</button>
+          </div>`;
+        }
+        const inEffect=isMyTurn&&act&&(
+          act.phase==='awaitEffectCard'||
+          act.phase==='awaitDonguri'||
+          act.phase==='awaitLadyFirst'
+        );
+        if(act&&act.phase==='awaitEffectCard'&&isMyTurn){
+          return `<div class="player-action-bar">
+            <span style="font-size:0.6rem;color:var(--accent);letter-spacing:1px;animation:blink 1s ease infinite;">✦ 効果カードを確認中…</span>
+          </div>`;
+        }
+        if(act&&act.phase==='awaitDonguri'&&isMyTurn){
+          return `<div class="player-action-bar">
+            <span style="font-size:0.6rem;color:#f0a030;letter-spacing:1px;">🌰 裏返すタイルを選択</span>
+          </div>`;
+        }
+        if(act&&act.phase==='awaitDiscardBlind'&&isMyTurn){
+          return `<div class="player-action-bar">
+            <span style="font-size:0.6rem;color:#ffd700;letter-spacing:1px;">捨てる裏向きタイルを選択してください</span>
+          </div>`;
+        }
+        if(act&&act.phase==='awaitIkkaPool'&&isMyTurn){
+          return `<div class="player-action-bar">
+            <button class="btn-sm accent" onclick="cancelEffect()">キャンセル</button>
+            <span style="font-size:0.6rem;color:#ffd700;letter-spacing:1px;">山札か捨て場の裏タイルを選択</span>
+          </div>`;
+        }
+        if(act&&act.phase==='awaitLadyFirst'&&isMyTurn){
+          const others=G.players.filter((_,i)=>i!==G.currentPlayer);
+          const btns=others.map(p=>`<button class="btn-sm" style="border-color:#e070f0;color:#e070f0;" onclick="executeLadyFirst('${p.name}')">${p.name}</button>`).join('');
+          return `<div class="player-action-bar">${btns}<button class="btn-sm accent" onclick="cancelEffect()">キャンセル</button></div>`;
+        }
+        return `<div class="player-action-bar">
+          <button class="btn-sm" onclick="startMoveBlind()" ${canMoveBlind?'':'disabled'}>裏タイル移動</button>
+          <button class="btn-sm" onclick="passAction()" ${canPass?'':'disabled'}>パス</button>
+        </div>`;
+      })():''}`;
+    insertPlayerZone(div);
+
+    const tileRow=div.querySelector(`#tileRow${pi}`);
+    const showInsertGaps=isActive&&act&&act.phase==='awaitMoveInsert';
+    const showWildGaps=isMyTurn&&isActive&&act&&act.phase==='awaitWildPlace';
+    const movingIdx=act&&act.selectedHandIdx;
+
+    // Build hand display — with gap slots interleaved when in insert mode
+    if(showWildGaps){
+      // ワイルド配置モード: 全スロットに配置ボタン
+      for(let gi=0;gi<=player.hand.length;gi++){
+        const g=document.createElement('div');
+        g.className='gap-slot wild-drop';
+        g.textContent='☆';
+        const _gi=gi;
+        g.onclick=()=>placeWild(_gi);
+        tileRow.appendChild(g);
+        if(gi<player.hand.length){
+          const h=player.hand[gi];
+          const el=document.createElement('div');
+          el.className=`tile ${h.revealed?'face-up':'face-down'}${h.tile&&h.tile.wild?' wild-tile':''}`;
+          el.textContent=h.revealed?h.tile.num:'';
+          tileRow.appendChild(el);
+        }
+      }
+    } else if(showInsertGaps){
+      // Render hand WITHOUT the moving tile (it's been logically lifted out)
+      const handWithout=player.hand.filter((_,i)=>i!==movingIdx);
+      for(let gi=0;gi<=handWithout.length;gi++){
+        // Gap slot
+        const gapBlocked=isGapBlockedForInsert(handWithout,gi);
+        const g=document.createElement('div');
+        g.className=`gap-slot${gapBlocked?' blocked':' droppable'}`;
+        g.textContent=gapBlocked?'':'↓';
+        g.title=gapBlocked?'連番の間には差し込めません':'ここに差し込む';
+        if(!gapBlocked){const gi2=gi;g.onclick=()=>doMoveInsert(gi2);}
+        tileRow.appendChild(g);
+        // Tile
+        if(gi<handWithout.length){
+          const h=handWithout[gi];
+          const el=document.createElement('div');
+          el.className=`tile ${h.revealed?'face-up':'face-down'}`;
+          el.textContent=h.revealed?h.tile.num:'';
+          if(h.revealed&&h.tile.rev)el.title=`逆さ:${h.tile.rev}`;
+          tileRow.appendChild(el);
+        }
+      }
+    } else {
+      player.hand.forEach((h,hi)=>{
+        const canSelect=isActive&&!h.revealed&&act&&
+          (act.phase==='awaitSwap'||act.phase==='awaitMoveBlind');
+        const isSel=act&&act.selectedHandIdx===hi&&act.playerIdx===pi;
+        const el=document.createElement('div');
+        el.className=`tile ${h.revealed?'face-up':'face-down'}`;
+        if(canSelect&&!h.revealed)el.classList.add('selectable');
+        if(isSel)el.classList.add('selected');
+        // 置ける位置ハイライト（awaitSwap時・自分のターン）
+        if(isActive&&act&&act.phase==='awaitSwap'&&!h.revealed){
+          const drawn=act.drawnTile;
+          const fits=canFit(player.hand,hi,drawn.num)||(drawn.rev&&canFit(player.hand,hi,drawn.rev));
+          if(fits) el.classList.add('can-place');
+          else el.classList.add('cannot-place');
+        }
+        el.textContent=h.revealed?h.tile.num:'';
+        if(h.revealed&&h.tile.rev)el.title=`逆さ:${h.tile.rev}`;
+        if(canSelect&&!h.revealed)el.onclick=()=>clickHandTile(pi,hi);
+        // 自分の表タイルはドラッグで捨て場へ
+        if(h.revealed&&isActive&&act&&act.phase==='awaitSwap'){
+          el.style.cursor='grab';
+          const _hi=hi,_num=h.tile.num;
+          el.addEventListener('mousedown',(e)=>startTileDrag(e,_hi,_num),{once:true});
+        }
+        // スワップアニメ（裏タイル交換で表になったタイル）
+        if(swapAnim && swapAnim.pi===pi && swapAnim.hi===hi){
+          el.classList.add('just-swapped-in');
+          swapAnim=null;
+        }
+        // どんぐりころころアニメ（表→裏返しアニメ）
+        if(donguriAnim && donguriAnim.pi===pi && donguriAnim.hi===hi){
+          el.classList.add('donguri-flipping');
+          donguriAnim=null;
+        }
+        // 差し込みアニメ（裏タイル移動）
+        if(insertAnim && insertAnim.pi===pi && insertAnim.hi===hi){
+          el.classList.add('just-inserted');
+          insertAnim=null;
+        }
+        // どんぐりころころ
+        if(act&&act.phase==='awaitDonguri'&&h.revealed){
+          el.classList.add('donguri-target');
+          const _pi=pi,_hi=hi;
+          el.onclick=()=>executeDonguri(_pi,_hi);
+        }
+        // awaitDiscardBlind: 自分の裏タイルをクリック可能に
+        tileRow.appendChild(el);
+      });
+    }
+  });
+
+  // ── 引いたカードバナー ──
+  const banner=document.getElementById('drawnBanner');
+  const flipBtn=document.getElementById('btnFlipDrawn');
+  const discardBtn=document.getElementById('btnCannotPlace');
+  if(act&&act.drawnTile&&act.tileFlipped){
+    const t=act.drawnTile;
+    const isFlipped=act.useRev===true;
+    banner.classList.remove('hidden');
+    const disp=document.getElementById('drawnCardDisplay');
+    // ひっくり返し = rev値を数字として表示するだけ（CSS回転なし）
+    disp.textContent=isFlipped&&t.rev?t.rev:t.num;
+    disp.style.transform='';
+    document.getElementById('drawnBannerSub').textContent=
+      `${G.players[G.currentPlayer].name} が引いた — 裏タイルと交換してください`;
+    document.getElementById('drawnBannerRev').textContent=
+      t.rev?`逆さで使用: ${t.rev}（現在: ${isFlipped?'逆さ':'正向き'}）`:'';
+    if(t.rev){flipBtn.style.display='';flipBtn.textContent=isFlipped?`⟳ 正向き (${t.num})`:`⟳ ひっくり返す (→${t.rev})`;}
+    else{flipBtn.style.display='none';}
+    discardBtn.style.display='';
+  }else{
+    banner.classList.add('hidden');
+    if(flipBtn)flipBtn.style.display='none';
+    if(discardBtn)discardBtn.style.display='none';
+  }
+
+  // ── カードエリア描画 ──
+  syncScatterToPool();
+  syncScatterToDiscard();
+  renderCardArea();
+
+  // ── Action panel ──
+  document.getElementById('actionPanel').style.display='';
+  const hint=document.getElementById('actionHint');
+  const ph=document.getElementById('phaseHint');
+  ph.style.display='';
+
+  if(!G.gameOver){
+    const name=G.players[cp].name;
+    if(!act){
+      hint.textContent=`${name} のターン：山札から引く / 捨て場から取る / 手札の裏タイル移動 / パス`;
+      ph.textContent='';
+    }else if(act.phase==='awaitPoolSelect'){
+      hint.textContent='山札のタイルを1枚クリックしてめくってください';
+      ph.textContent='💡 どのタイルも中身は同じ確率。直感で選ぼう！';
+    }else if(act.phase==='awaitSwap'){
+      const useNum=act.useRev&&act.drawnTile.rev?act.drawnTile.rev:act.drawnTile.num;
+      hint.textContent=`[${useNum}] として使用 — 置く裏タイルをクリック`;
+      ph.textContent=act.drawnTile.rev
+        ?`💡 ひっくり返すボタンで向きを変えられます。置けなければ「捨てる」を押してください`
+        :`💡 置けない場合は引いたタイル横の「捨てる」ボタンを押してください`;
+    }else if(act.phase==='awaitMoveBlind'){
+      hint.textContent='移動する裏タイルをクリック';
+      ph.textContent='💡 裏タイルを別の位置に差し込みます。連番の間には入れられません。';
+    }else if(act.phase==='awaitMoveInsert'){
+      hint.textContent='差し込む位置の ↓ をクリック（赤ハッチは連番隣接のためNG）';
+      ph.textContent='';
+    }else if(act.phase==='awaitEffectCard'){
+      hint.textContent=`${G.players[cp].name}: 効果カードを引いた！`;
+      ph.textContent='💡 効果カードを確認して使用するか選んでください';
+    }else if(act.phase==='awaitDiscardBlind'){
+      hint.textContent='👑 一か八か表 — 捨てる裏向きタイルをクリック';
+      ph.textContent='💡 光っている裏向きタイルを1枚選んで捨てます。';
+    }else if(act.phase==='awaitDonguri'){
+      hint.textContent='🌰 どんぐりころころ — 光るタイルをクリックして選択';
+      ph.textContent='💡 選んだ表タイルが裏返されます（自分のタイルも選べます）';
+    }else if(act.phase==='awaitIkkaPool'){
+      hint.textContent='👑 一か八か — 金色に光るタイルをクリックして選択';
+      ph.textContent='💡 山札または捨て場の裏タイルを1枚選んで手札に表向きで配置できます';
+    }else if(act.phase==='awaitLadyFirst'){
+      hint.textContent='💃 レディーファースト — ターンを渡すプレイヤーを選択';
+      ph.textContent='💡 選んだプレイヤーのターンになります';
+    }
+  }else{
+    hint.textContent='ゲーム終了';ph.textContent='';
+  }
+
+  document.getElementById('hdrTurn').textContent=G.gameOver?'GAME OVER':G.players[cp].name;
+  document.getElementById('hdrRound').textContent=`ROUND ${G.round}`;
+  const dirEl=document.getElementById('hdrDir');
+  if(dirEl)dirEl.textContent=G.direction===-1?'↺ 逆回転':'↻';
+  document.getElementById('hdrPool').textContent=`POOL: ${G.pool.length+G.discard.length}`;
+}
+
+// ════════════════════════════════════════════
+//  IN-GAME ACTIONS
+// ════════════════════════════════════════════
+
+// ⓪ 引いたタイルをひっくり返す（逆さ/正向き切り替え）
+function resolveOrient(useRev){
+  if(window._orientResolve) window._orientResolve(useRev);
+}
+
+function executeSwap(pi, hi, useNum){
+  const player = G.players[pi];
+  const removed = player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
+  swapAnim = {pi, hi};
+  G.discard.forEach(e=>e.isNew=false);
+  playSound('discard');
+  G.discard.push({tile:removed.tile, discardedBy:player.name, faceUp:false, isNew:true});
+  const bonus = isConsecutive(player.hand, hi);
+  const bonusLabel = bonus===2?'🎉🎉 ダブル連番！':'🎉 連番！';
+  log(`${player.name}: [${useNum}] を配置。`, bonus?'highlight':'');
+  act=null; G.act=null; player.turns++;
+  // 達成進捗を記録
+  const revealedNow = player.hand.filter(h=>h.revealed).length;
+  if(!player.progressHistory) player.progressHistory=[[0,0]];
+  player.progressHistory.push([G.round, revealedNow]);
+  checkWin(G.currentPlayer);
+  if(!G.gameOver){
+    if(bonus>0){
+      playSound('bonus');
+      log(`${bonusLabel}${player.name} が効果カードを引く！${bonus===2?'（使用後もう1枚！）':''}`, 'highlight');
+      bonusEffect(pi, hi);
+      act={phase:'awaitEffectCard', playerIdx:G.currentPlayer, doubleBonus:bonus===2, usedFirst:false};
+      G.act=act;
+      drawEffectCard();
+      return;
+    } else {
+      playSound('place');
+      nextTurn();
+    }
+  }
+  syncToServer();
+  render();
+}
+
+function flipDrawnTile(){
+  if(!act||act.phase!=='awaitSwap'||!act.drawnTile.rev)return;
+  act.useRev=!act.useRev;
+  render();
+}
+
+// ⓪ パス（ターンをスキップ）
+function passAction(){
+  if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  const cp=G.currentPlayer;
+  // グラフ用進捗記録（パス時も点を打つ）
+  const _plPass=G.players[cp];
+  if(_plPass&&_plPass.progressHistory){
+    const _rv=_plPass.hand.filter(h=>h.revealed).length;
+    _plPass.progressHistory.push([G.round,_rv]);
+  }
+  playSound('discard');
+  log(`${G.players[cp].name}: パスした。`);
+  nextTurn();syncToServer();render();
+}
+
+// ① 山札タイルをクリック → めくりアニメ → awaitSwap
+function flipPoolTile(poolIdx, el){
+  if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  el.classList.add('flipping');
+  act={phase:'awaitPoolSelect',drawnTile:null,playerIdx:G.currentPlayer,fromDiscard:false,tileFlipped:false};
+  // アニメ完了後にタイルをめくってawaitSwapへ
+  setTimeout(()=>{
+    const tile=G.pool.splice(poolIdx,1)[0];
+    act={phase:'awaitSwap',drawnTile:tile,playerIdx:G.currentPlayer,fromDiscard:false,tileFlipped:true};
+    G.discard.forEach(e=>e.isNew=false);
+    playSound('draw');
+    log(`${G.players[G.currentPlayer].name} が山札から [${tile.num}${tile.rev?'/'+tile.rev:''}] をめくった！`,'highlight');
+    syncToServer(); // G.act=awaitSwap を全員に配信
+    render();
+  },380);
+}
+
+// ② 捨て場から取得（裏向きタイルをめくって手に入れる）
+function takeDiscard(di){
+  if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  const entry=G.discard.splice(di,1)[0];
+  G.discard.forEach(e=>e.isNew=false);
+  // tile is now revealed to current player
+  act={phase:'awaitSwap',drawnTile:entry.tile,playerIdx:G.currentPlayer,fromDiscard:true,tileFlipped:true};
+  playSound('draw');
+  log(`${G.players[G.currentPlayer].name} が捨て場から（${entry.discardedBy} の捨てたタイル）[${entry.tile.num}] を取った！`,'highlight');
+  syncToServer();
+  render();
+}
+
+// ③ 手札の裏タイルクリック
+function clickHandTile(pi,hi){
+  if(!G||!act||setupPhase||pi!==G.currentPlayer)return;
+  if(myName && G.players[pi].name !== myName)return;
+  const player=G.players[G.currentPlayer];
+
+  if(act.phase==='awaitSwap'){
+    if(player.hand[hi].revealed){log('表向きのタイルとは交換できません！','error');flashTile(pi,hi);return;}
+    const drawn=act.drawnTile.num, rev=act.drawnTile.rev;
+    const fitsNormal = canFit(player.hand,hi,drawn);
+    const fitsRev    = rev && canFit(player.hand,hi,rev);
+
+    // 両方向で置ける → ダイアログで確認
+    if(fitsNormal && fitsRev){
+      const modal = document.getElementById('orientModal');
+      document.getElementById('orientBtnNormal').textContent = drawn;
+      document.getElementById('orientBtnRev').textContent    = rev;
+      modal.style.display = 'flex';
+      // 解決関数をグローバルに設定
+      window._orientResolve = (useRev) => {
+        modal.style.display = 'none';
+        window._orientResolve = null;
+        executeSwap(pi, hi, useRev ? rev : drawn);
+      };
+      return;
+    }
+
+    // 片方だけ置ける or useRevで明示指定
+    let useNum;
+    if(act.useRev===true && fitsRev)       useNum = rev;
+    else if(act.useRev===false && fitsNormal) useNum = drawn;
+    else if(fitsNormal)  useNum = drawn;
+    else if(fitsRev)     useNum = rev;
+    else { playSound('error'); log(`[${drawn}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error'); flashTile(pi,hi); return; }
+    executeSwap(pi, hi, useNum);
+  }else if(act.phase==='awaitMoveBlind'){
+    if(player.hand[hi].revealed){log('表向きタイルは移動できません！','error');return;}
+    act.phase='awaitMoveInsert';act.selectedHandIdx=hi;
+    log(`位置 ${hi+1} の裏タイルを選択。差し込む場所の ↓ をクリック。`);render();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  効果カードシステム
+// ══════════════════════════════════════════════
+const EFFECT_CARDS = [
+  {
+    id:'donguri',
+    name:'どんぐりころころ',
+    desc:'任意の表向きタイルを1枚裏返す。\n自分の手札も対象にできる。',
+    color:'#f0a030',
+    icon:'🌰',
+  },
+  {
+    id:'mouikkai',
+    name:'もう一回！',
+    desc:'もう一度自分のターンになる。',
+    color:'#5ab4e0',
+    icon:'🔁',
+  },
+  {
+    id:'tobashi',
+    name:'ひとつ飛ばしてべっぴんさん',
+    desc:'次のプレイヤーの手番をスキップする。',
+    color:'#7de87a',
+    icon:'⏭',
+  },
+  {
+    id:'ladyfirst',
+    name:'レディーファースト',
+    desc:'自分以外のプレイヤーを1人選択。\nそのプレイヤーのターンになる。',
+    color:'#e070f0',
+    icon:'👑',
+  },
+  {
+    id:'kousokukaiten',
+    name:'高速回転',
+    desc:'ターン順が逆回転になる。',
+    color:'#ff6060',
+    icon:'🔄',
+  },
+  {
+    id:'ichikabachika',
+    name:'一か八か',
+    desc:'コインフリップ。表が出たら手札の裏向きタイルを1枚捨てられる。\n裏が出たら自分の表タイルが1枚ランダムで裏返される。',
+    color:'#ffd700',
+    icon:'🪙',
+  },
+  {
+    id:'omaenomono',
+    name:'お前のものは俺の物',
+    desc:'ランダムなプレイヤーと手札をすべて交換する。',
+    color:'#ff8c00',
+    icon:'🤝',
+  },
+];
+
+let drawnEffectCard = null; // 現在引いている効果カード
+
+let drawnEffectCards = []; // 2枚引いた候補
+
+function drawEffectCard(){
+  if(!act||act.phase!=='awaitEffectCard')return;
+  if(!myName||G.players[G.currentPlayer].name===myName){
+    const isDouble = act.doubleBonus && !act.usedFirst;
+    let chosen;
+    if(isDouble){
+      // ダブル連番: 全カードから選択（重複排除）
+      chosen = [...EFFECT_CARDS];
+    } else {
+      // 通常: 2枚ランダム
+      const idx1=Math.floor(Math.random()*EFFECT_CARDS.length);
+      let idx2=(idx1+1+Math.floor(Math.random()*(EFFECT_CARDS.length-1)))%EFFECT_CARDS.length;
+      chosen=[EFFECT_CARDS[idx1],EFFECT_CARDS[idx2]];
+    }
+    drawnEffectCards=chosen;
+    drawnEffectCard=null;
+    act.effectCards=chosen.map(c=>c.id);
+    act.isDoubleChoice=isDouble;
+    G.act=act;
+    syncToServer();
+    openEffectCardChoiceModal(chosen, isDouble);
+  }
+}
+
+function openEffectCardChoiceModal(cards, isDouble){
+  document.getElementById('effectCardInner').style.display='none';
+  const container=document.getElementById('ecChoiceContainer');
+  container.style.display='block';
+  document.getElementById('ecChoiceLabel').textContent = isDouble
+    ? '🎉🎉 ダブル連番！ — 全カードから選べます'
+    : '✦ EFFECT CARD — どちらを発動しますか？ ✦';
+  const wrap=document.getElementById('ecChoiceWrap');
+  wrap.innerHTML=cards.map((card,i)=>`
+    <div class="ec-card-choice" onclick="selectEffectCard(${i})"
+      style="border-color:${card.color}44;">
+      <span class="ec-card-icon">${card.icon||'✦'}</span>
+      <div class="ec-card-label">✦ EFFECT CARD</div>
+      <div class="ec-card-name" style="color:${card.color};">${card.name}</div>
+      <div class="ec-card-divider" style="background:${card.color};"></div>
+      <div class="ec-card-desc">${card.desc}</div>
+      <div class="ec-card-select">▶ 選択する</div>
+    </div>
+  `).join('');
+  document.getElementById('effectCardModal').classList.add('show');
+  playSound('effectcard');
+}
+
+function selectEffectCard(idx){
+  drawnEffectCard=drawnEffectCards[idx];
+  // 他プレイヤーに選択を先にsync
+  if(act){
+    act.selectedCard=drawnEffectCard.id;
+    act.selectedCardIdx=idx;
+    G.act=act;
+    syncToServer();
+  }
+  drawnEffectCards=[];
+  // カードアニメ
+  const cards=document.querySelectorAll('#ecChoiceWrap .ec-card-choice');
+  cards.forEach((el,i)=>{
+    el.style.animation='none';
+    void el.offsetWidth;
+    if(i===idx) el.classList.add('selected');
+    else el.classList.add('rejected');
+  });
+  // モーダルfadeout → useEffectCard
+  const modal=document.getElementById('effectCardModal');
+  setTimeout(()=>{
+    modal.classList.add('closing');
+    setTimeout(()=>{
+      modal.classList.remove('closing');
+      closeEffectCardModal();
+      useEffectCard();
+    }, 700);
+  }, 500);
+}
+
+// お前のものは俺の物: ルーレット
+function startRoulette(cp){
+  const others=G.players.map((_,i)=>i).filter(i=>i!==cp);
+  const finalIdx=others[Math.floor(Math.random()*others.length)];
+  // syncで全員にfinalIdxを配信
+  if(act){
+    act.phase='awaitRoulette';
+    act.rouletteFinal=finalIdx;
+    act.rouletteCP=cp;
+    G.act=act;
+    syncToServer();
+  }
+  runRouletteAnim(cp, finalIdx, ()=>{
+    // 交換実行
+    const myHand=G.players[cp].hand;
+    G.players[cp].hand=G.players[finalIdx].hand;
+    G.players[finalIdx].hand=myHand;
+    log(`😈 お前のものは俺の物！${G.players[cp].name} と ${G.players[finalIdx].name} の手札が入れ替わった！`,'highlight');
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  });
+}
+
+function runRouletteAnim(cp, finalIdx, onDone){
+  const others=G.players.map((_,i)=>i).filter(i=>i!==cp);
+  const modal=document.getElementById('rouletteModal');
+  const track=document.getElementById('rouletteTrack');
+  const result=document.getElementById('rouletteResult');
+  result.textContent='';
+  modal.classList.add('show');
+
+  // スロットアイテムを生成（ループ用に多めに）
+  const items=[...others,...others,...others,...others];
+  // finalIdxが最後の周回中央に来るよう調整
+  const winnerPosInLast=others.indexOf(finalIdx)+others.length*2;
+  track.innerHTML=items.map((pi,i)=>`
+    <div class="roulette-item${i===winnerPosInLast?' winner':''}">${G.players[pi].name}</div>
+  `).join('');
+
+  // 初期位置: 先頭から開始
+  const itemH=72;
+  track.style.transition='none';
+  track.style.transform='translateY(0)';
+
+  // 目標Y: winnerPosInLast番目のアイテムが中央に来る位置
+  const targetY=-(winnerPosInLast*itemH);
+
+  // アニメ開始
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      // クリック音のみ（静か）
+      playSound('rouletteClick');
+      track.style.transition=`transform 2.2s cubic-bezier(0.23,1,0.32,1)`;
+      track.style.transform=`translateY(${targetY}px)`;
+    });
+  });
+
+  setTimeout(()=>{
+    result.textContent=`${G.players[finalIdx].name} と交換！`;
+    setTimeout(()=>{
+      modal.classList.remove('show');
+      onDone();
+    },900);
+  }, 2600);
+}
+
+// 観戦者: 選択アニメを再生してモーダルを閉じる
+function playSelectionAnim(idx){
+  const cards=document.querySelectorAll('#ecChoiceWrap .ec-card-choice');
+  if(!cards.length) return;
+  cards.forEach((el,i)=>{
+    el.style.animation='none';
+    void el.offsetWidth;
+    if(i===idx) el.classList.add('selected');
+    else el.classList.add('rejected');
+  });
+  const modal=document.getElementById('effectCardModal');
+  setTimeout(()=>{
+    modal.classList.add('closing');
+    setTimeout(()=>{
+      modal.classList.remove('closing');
+      closeEffectCardModal();
+    }, 700);
+  }, 500);
+}
+
+function openEffectCardModal(card){
+  // 2択UIを隠して単体表示
+  document.getElementById('ecChoiceContainer').style.display='none';
+  const inner = document.getElementById('effectCardInner');
+  inner.style.display='block';
+  document.getElementById('ecName').textContent = card.name;
+  document.getElementById('ecName').style.color = card.color;
+  document.getElementById('ecDesc').textContent = card.desc;
+  document.getElementById('ecButtons').innerHTML = `
+    <button class="ec-use-btn" style="border-color:${card.color};color:${card.color};background:${card.color}18;"
+      onclick="useEffectCard()">✦ 発動する</button>
+  `;
+  inner.classList.remove('reveal');
+  void inner.offsetWidth;
+  inner.classList.add('reveal');
+  document.getElementById('effectCardModal').classList.add('show');
+  playSound('effectcard');
+}
+
+function closeEffectCardModal(){
+  document.getElementById('effectCardModal').classList.remove('show');
+  document.getElementById('effectCardInner').style.display='none';
+  document.getElementById('ecChoiceContainer').style.display='none';
+}
+
+// 効果カード使用後の処理
+function afterEffectCardUsed(){
+  if(act&&act.doubleBonus&&!act.usedFirst){
+    // ダブル連番: もう1枚引く
+    act.usedFirst=true;
+    act.phase='awaitEffectCard';
+    G.act=act;
+    log(`✨ ダブル連番ボーナス！もう1枚引く！`,'highlight');
+    drawEffectCard();
+  } else {
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  }
+}
+
+function useEffectCard(){
+  closeEffectCardModal();
+  if(!drawnEffectCard)return;
+  const id = drawnEffectCard.id;
+  const cp = G.currentPlayer;
+  log(`✦ ${G.players[cp].name} が「${drawnEffectCard.name}」を発動！`,'highlight');
+  const card = drawnEffectCard;
+  drawnEffectCard=null;
+  if(id==='mouikkai'){
+    log(`🔁 ${G.players[cp].name} のターンが続く！`,'highlight');
+    if(act&&act.doubleBonus&&!act.usedFirst){
+      // ダブルボーナス中→2枚目を引く
+      afterEffectCardUsed();
+    } else {
+      // 通常→ターン継続（nextTurnしない）
+      act=null;G.act=null;
+      syncToServer();render();
+    }
+    return;
+  } else if(id==='tobashi'){
+    const dir=G.direction||1;
+    const n=G.players.length;
+    const skippedIdx=(cp+dir+n)%n;
+    const skipped=G.players[skippedIdx].name;
+    const nextIdx=(cp + dir*2 + n*2) % n;
+    log(`⏭ ${skipped} をスキップ！`,'highlight');
+    act=null;G.act=null;
+    G.currentPlayer=nextIdx;
+    syncToServer();render();
+    return; // afterEffectCardUsedを呼ばない
+  } else if(id==='kousokukaiten'){
+    G.direction=(G.direction||1)*-1;
+    const dir=G.direction===1?'正回転':'逆回転';
+    log(`🌀 高速回転！ターン順が${dir}に！`,'highlight');
+    playSound('kousoku');
+  } else if(id==='donguri'){
+    act.phase='awaitDonguri';
+    G.act=act;
+    log(`🌰 どんぐりころころ — 裏返す表タイルを選んでください`,'highlight');
+    syncToServer();render();
+    return; // afterEffectCardUsedはexecuteDonguri内で呼ぶ
+  } else if(id==='ladyfirst'){
+    act.phase='awaitLadyFirst';
+    G.act=act;
+    log(`💃 レディーファースト — ターンを渡すプレイヤーを選んでください`,'highlight');
+    syncToServer();render();
+    return;
+  } else if(id==='ichikabachika'){
+    const heads = Math.random()<0.5;
+    act.coinResult = heads ? 'heads' : 'tails';
+    act.phase = 'awaitCoinFlip';
+    G.act=act;
+    playSound('coin');
+    syncToServer(); // 全員にheads/tailsを配信
+    showCoinFlip(heads);
+    return;
+  } else if(id==='omaenomono'){
+    // ルーレットで相手を決める
+    startRoulette(cp);
+    return;
+  }
+  // 即時完了する効果はここでダブルボーナス判定
+  afterEffectCardUsed();
+}
+
+function cancelEffect(){
+  if(!act)return;
+  if(act.phase==='awaitLadyFirst'||act.phase==='awaitIkkaPool'){
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  }
+}
+
+// 一か八か: コインフリップ表示
+function showCoinFlip(heads){
+  const card = EFFECT_CARDS.find(c=>c.id==='ichikabachika');
+  // 2択UIを隠して単体表示
+  document.getElementById('ecChoiceContainer').style.display='none';
+  const inner = document.getElementById('effectCardInner');
+  inner.style.display='block';
+  document.getElementById('ecName').textContent = card.name;
+  document.getElementById('ecName').style.color = card.color;
+  // コイン表示エリアを差し込む
+  document.getElementById('ecDesc').innerHTML =
+    `<div id="coinFlipDisplay" class="spinning">${heads?'👑':'💀'}</div>` +
+    `<div style="font-size:1.1rem;font-weight:bold;color:${heads?'#ffd700':'#ff6060'};letter-spacing:2px;margin-bottom:8px;">${heads?'表！HEADS':'裏！TAILS'}</div>` +
+    (heads
+      ? '手札の裏向きタイルを1枚捨てられる！不要な数字を手放そう。'
+      : '自分の表タイルがランダムで1枚裏返される…');
+  const isMyTurnNow=!myName||G.players[G.currentPlayer].name===myName;
+  document.getElementById('ecButtons').innerHTML = isMyTurnNow
+    ? (heads
+        ? `<button class="ec-use-btn" style="border-color:#ffd700;color:#ffd700;background:#ffd70018;" onclick="executeIkkaHeads()">✦ 裏向きタイルを捨てる</button>`
+        : `<button class="ec-use-btn" style="border-color:#ff6060;color:#ff6060;background:#ff606018;" onclick="executeIkkaTails()">✦ 運命を受け入れる</button>`)
+    : `<div style="font-size:0.65rem;color:#555;letter-spacing:1px;text-align:center;">結果を待っています…</div>`;
+  inner.classList.remove('reveal');
+  void inner.offsetWidth;
+  inner.classList.add('reveal');
+  document.getElementById('effectCardModal').classList.add('show');
+}
+
+// 表: 2ターン追加（連番含めると計3回行動）
+function executeIkkaHeads(){
+  closeEffectCardModal();
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const blindIdxs=player.hand.map((h,i)=>!h.revealed?i:-1).filter(i=>i>=0);
+  if(blindIdxs.length===0){
+    log(`👑 表！でも裏向きタイルがないので無効。`,'highlight');
+    act=null;G.act=null;nextTurn();syncToServer();render();
+    return;
+  }
+  log(`👑 表！${player.name} が裏向きタイルを1枚捨てられる！`,'highlight');
+  act.phase='awaitDiscardBlind';
+  G.act=act;
+  syncToServer();
+  render();
+}
+
+// 表: 裏向きタイルを1枚捨てる
+function discardBlindTile(hi){
+  if(!act||act.phase!=='awaitDiscardBlind')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  if(player.hand[hi]&&!player.hand[hi].revealed){
+    const discarded=player.hand.splice(hi,1)[0];
+    log(`👑 ${player.name} が裏向きタイル[?]を捨てた！`,'highlight');
+    act=null;G.act=null;
+    nextTurn();syncToServer();render();
+  }
+}
+
+// 裏: 自分の表タイルをランダムで1枚裏返す
+function executeIkkaTails(){
+  closeEffectCardModal();
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const revealedIdxs=player.hand.map((h,i)=>h.revealed?i:-1).filter(i=>i>=0);
+  if(revealedIdxs.length>0){
+    const hi=revealedIdxs[Math.floor(Math.random()*revealedIdxs.length)];
+    const flipped=player.hand[hi].tile;
+    player.hand[hi]={tile:flipped,revealed:false};
+    donguriAnim={pi:cp,hi};
+    playSound('donguri');
+    log(`💀 裏！${player.name} の [${flipped.num}] が裏返された！`,'highlight');
+  } else {
+    log(`💀 裏！でも表タイルがなかったので無効。`,'highlight');
+  }
+  // 裏→ターン終了
+  act=null;G.act=null;
+  nextTurn();syncToServer();render();
+}
+
+// 一か八か: 山札タイルを選んで表にする
+function ikkaSelectPool(poolIdx){
+  if(!act||act.phase!=='awaitIkkaPool')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const tile=G.pool.splice(poolIdx,1)[0];
+  // 自分の裏タイルの1枚と交換（最初の裏タイル位置を表に）
+  const blindIdx=player.hand.findIndex(h=>!h.revealed);
+  if(blindIdx>=0){
+    // 元の裏タイルを山札に戻してtileを表にセット
+    G.pool.push(player.hand[blindIdx].tile);
+    player.hand[blindIdx]={tile,revealed:true};
+    swapAnim={pi:cp,hi:blindIdx};
+    log(`👑 一か八か成功！[${tile.num}] を手札に配置！`,'highlight');
+  } else {
+    G.pool.push(tile); // 裏タイルなければ戻す
+    log(`👑 裏タイルがないので無効。`,'highlight');
+  }
+  act=null;G.act=null;
+  syncToServer();render();
+}
+
+// 一か八か: 捨て場の裏タイルを選んで表にする
+function ikkaSelectDiscard(di){
+  if(!act||act.phase!=='awaitIkkaPool')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const entry=G.discard[di];
+  if(!entry||entry.faceUp){playSound('error');return;} // 表向きは選べない
+  G.discard.splice(di,1);
+  const blindIdx=player.hand.findIndex(h=>!h.revealed);
+  if(blindIdx>=0){
+    G.pool.push(player.hand[blindIdx].tile);
+    player.hand[blindIdx]={tile:entry.tile,revealed:true};
+    swapAnim={pi:cp,hi:blindIdx};
+    log(`👑 一か八か成功！捨て場から [${entry.tile.num}] を手札に配置！`,'highlight');
+  } else {
+    G.discard.push(entry);
+    log(`👑 裏タイルがないので無効。`,'highlight');
+  }
+  act=null;G.act=null;
+  syncToServer();render();
+}
+
+// ワイルドカード配置
+function placeWild(gapIdx){
+  if(!act||act.phase!=='awaitWildPlace')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const cp=G.currentPlayer;
+  const player=G.players[cp];
+  const wildTile={tile:{num:'☆',wild:true},revealed:true};
+  player.hand.splice(gapIdx,0,wildTile);
+  insertAnim={pi:cp,hi:gapIdx};
+  playSound('bonus');
+  log(`⭐ ${player.name} がワイルドカード（☆）を位置${gapIdx+1}に配置！`,'highlight');
+  // 連番チェック
+  const bonus=isConsecutive(player.hand,gapIdx);
+  if(bonus>0){
+    const bonusLabel=bonus===2?'🎉🎉 ダブル連番！ ':'🎉 連番！ ';
+    log(`${bonusLabel}${player.name} が効果カードを引く！`,'highlight');
+    act={phase:'awaitEffectCard',playerIdx:cp,doubleBonus:bonus===2,usedFirst:false};
+    G.act=act;
+    syncToServer();render();
+    drawEffectCard();
+    return;
+  }
+  act=null;G.act=null;
+  nextTurn();syncToServer();render();
+}
+
+// どんぐりころころ: 表タイルをクリック → 裏返す
+function executeDonguri(targetPi, targetHi){
+  if(!act||act.phase!=='awaitDonguri')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const defender=G.players[targetPi];
+  if(!defender.hand[targetHi]||!defender.hand[targetHi].revealed){
+    playSound('error');return;
+  }
+  const flipped=defender.hand[targetHi].tile;
+
+  // フェーズ1: DOMに直接donguri-selectedを付与（syncなし）
+  const tileRow=document.getElementById('tileRow'+targetPi);
+  if(tileRow){
+    // .tileクラスだけカウント（gap-slotを除外）
+    const allTiles=[...tileRow.children].filter(el=>el.classList.contains('tile'));
+    if(allTiles[targetHi]) allTiles[targetHi].classList.add('donguri-selected');
+  }
+  playSound('effectcard');
+
+  setTimeout(()=>{
+    // フェーズ2: 手札変更してsync、その後donguriAnimを設定してrender
+    defender.hand[targetHi]={tile:flipped,revealed:false};
+    act.donguriTarget={pi:targetPi,hi:targetHi,num:flipped.num};
+    G.act=act;
+    donguriAnim={pi:targetPi,hi:targetHi}; // syncより前にセット
+    playSound('donguri');
+    log(`🌰 どんぐりころころ！${G.players[G.currentPlayer].name} が ${defender.name} の [${flipped.num}] を裏返した！`,'highlight');
+    syncToServer();
+    render(); // donguriAnimを拾ってアニメ再生
+    setTimeout(()=>{
+      act=null;G.act=null;
+      afterEffectCardUsed();syncToServer();render();
+    }, 950);
+  }, 400);
+}
+
+// レディーファースト: プレイヤー名で指名
+function executeLadyFirst(targetName){
+  if(!act||act.phase!=='awaitLadyFirst')return;
+  if(myName&&G.players[G.currentPlayer].name!==myName)return;
+  const targetIdx=G.players.findIndex(p=>p.name===targetName);
+  if(targetIdx<0){playSound('error');return;}
+  act=null;G.act=null;
+  G.currentPlayer=targetIdx;
+  log(`💃 レディーファースト！${targetName} のターンへ！`,'highlight');
+  // ダブルボーナス判定（レディーファーストはターン移動済みなのでnextTurnしない）
+  const _wasDouble=act&&act.doubleBonus&&!act.usedFirst;
+  if(_wasDouble){
+    act.usedFirst=true;
+    act.phase='awaitEffectCard';
+    G.act=act;
+    log(`✨ ダブル連番ボーナス！もう1枚引く！`,'highlight');
+    syncToServer();
+    drawEffectCard();
+  } else {
+    act=null;G.act=null;
+    syncToServer();render();
+  }
+}
+
+// sync受信時: 効果カードモーダルを全員に表示
+function checkEffectCardSync(){
+  if(!G||!G.act)return;
+  const effectPhases=['awaitEffectCard','awaitDonguri','awaitLadyFirst','awaitIkkaPool','awaitCoinFlip','awaitRoulette','awaitDiscardBlind'];
+  // モーダルが選択アニメ中(closing)なら何もしない
+  if(document.getElementById('effectCardModal').classList.contains('closing')) return;
+  // awaitDonguri: 対象確定後、観戦者もアニメ
+  if(G.act.phase==='awaitDonguri'&&G.act.donguriTarget){
+    const isMe = !myName||G.players[G.currentPlayer].name===myName;
+    if(!isMe){
+      const {pi,hi}=G.act.donguriTarget;
+      // 観戦者: まだdonguriAnimがなければアニメ開始
+      if(!donguriAnim){
+        donguriAnim={pi,hi};
+        playSound('donguri');
+        render();
+      }
+    }
+    return;
+  }
+  if(G.act.phase==='awaitEffectCard'){
+    if(!(G.act.effectCards||G.act.effectCard)) return; // まだカード未決定
+    const isMe = !myName||G.players[G.currentPlayer].name===myName;
+    if(isMe){
+      // 本人: モーダルがまだ開いていなければ開く（レースコンディション対策）
+      const modal=document.getElementById('effectCardModal');
+      if(!modal.classList.contains('show')){
+        if(G.act.effectCards){
+          const cards=G.act.effectCards.map(id=>EFFECT_CARDS.find(c=>c.id===id)).filter(Boolean);
+          if(cards.length>=2) openEffectCardChoiceModal(cards, G.act.isDoubleChoice);
+        }
+      }
+      return;
+    }
+    // 他プレイヤー
+    if(G.act.effectCards){
+      const cards=G.act.effectCards.map(id=>EFFECT_CARDS.find(c=>c.id===id)).filter(Boolean);
+      if(cards.length>0){
+        const modal=document.getElementById('effectCardModal');
+        // 選択済みでアニメ未再生なら選択アニメを実行
+        if(G.act.selectedCardIdx!=null){
+          // 選択済み: アニメ中でなければアニメを再生
+          if(!modal.classList.contains('show')){
+            openEffectCardForSpectator(cards[0],cards[1]);
+            setTimeout(()=>playSelectionAnim(G.act.selectedCardIdx), 300);
+          } else if(!document.querySelector('.ec-card-choice.selected')){
+            playSelectionAnim(G.act.selectedCardIdx);
+          }
+        } else if(!modal.classList.contains('show')){
+          openEffectCardForSpectator(cards[0],cards[1]);
+        }
+      }
+    } else {
+      const card=EFFECT_CARDS.find(c=>c.id===G.act.effectCard);
+      if(card){
+        const modal=document.getElementById('effectCardModal');
+        if(!modal.classList.contains('show')) openEffectCardForSpectator(card);
+      }
+    }
+  } else if(G.act.phase==='awaitRoulette'&&G.act.rouletteFinal!=null){
+    const isMe = !myName||G.players[G.currentPlayer].name===myName;
+    if(!isMe){
+      const rModal=document.getElementById('rouletteModal');
+      if(!rModal.classList.contains('show')){
+        runRouletteAnim(G.act.rouletteCP, G.act.rouletteFinal, ()=>{});
+      }
+    }
+  } else if(!effectPhases.includes(G.act.phase)){
+    const _modal=document.getElementById('effectCardModal');
+    if(!_modal.classList.contains('closing')) closeEffectCardModal();
+  }
+}
+
+function openEffectCardForSpectator(card1, card2){
+  if(card2){
+    // 観戦者にも2択UIを表示（クリック不可）
+    document.getElementById('effectCardInner').style.display='none';
+    const container=document.getElementById('ecChoiceContainer');
+    container.style.display='block';
+    document.getElementById('ecChoiceLabel').textContent='✦ 選択中... ✦';
+    const wrap=document.getElementById('ecChoiceWrap');
+    wrap.innerHTML=[card1,card2].map((card,i)=>`
+      <div class="ec-card-choice" style="border-color:${card.color}22;cursor:default;">
+        <div class="ec-card-label">✦ EFFECT CARD</div>
+        <div class="ec-card-name" style="color:${card.color};">${card.name}</div>
+        <div class="ec-card-divider" style="background:${card.color};"></div>
+        <div class="ec-card-desc">${card.desc}</div>
+      </div>
+      
+    `).join('');
+  } else {
+    document.getElementById('ecChoiceContainer').style.display='none';
+    const inner=document.getElementById('effectCardInner');
+    inner.style.display='block';
+    document.getElementById('ecName').textContent=card1.name;
+    document.getElementById('ecName').style.color=card1.color;
+    document.getElementById('ecDesc').textContent=card1.desc;
+    document.getElementById('ecButtons').innerHTML=
+      `<div style="font-size:0.65rem;color:#555;text-align:center;letter-spacing:1px;">発動中...</div>`;
+    inner.classList.remove('reveal');
+    void inner.offsetWidth;
+    inner.classList.add('reveal');
+  }
+  document.getElementById('effectCardModal').classList.add('show');
+  playSound('effectcard');
+}
+
+function cannotPlace(){
+  if(!act||act.phase!=='awaitSwap')return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  G.discard.forEach(e=>e.isNew=false);
+  // 置けなかったタイルは表向きで捨て場へ（全員に数字が分かる）
+  // scatterDiscardに座標が既に追加済みでなければランダム追加
+  if(scatterDiscard.length <= G.discard.length){
+    const scatter=document.getElementById('cardScatter');
+    const W=scatter?scatter.clientWidth:400, H=scatter?scatter.clientHeight:200;
+    const all=scatterPool.concat(scatterDiscard);
+    const rx=randF(SCATTER_PAD,1-SCATTER_PAD), ry=randF(SCATTER_PAD,1-SCATTER_PAD);
+    const placed=scatterFindFreeSpot(rx,ry,all,W,H);
+    scatterDiscard.push({rx:placed.rx,ry:placed.ry,rot:randF(-20,20),z:50+scatterDiscard.length});
+  }
+  G.discard.push({tile:act.drawnTile,discardedBy:G.players[G.currentPlayer].name,faceUp:true,isNew:true});
+  playSound('discard');
+  log(`${G.players[G.currentPlayer].name}: [${act.drawnTile.num}] は置けず → 表向きで捨て場へ。`,'error');
+  // グラフ用進捗記録（置けなかった時も点を打つ）
+  const _plCnt=G.players[G.currentPlayer];
+  if(_plCnt&&_plCnt.progressHistory){
+    const _rv=_plCnt.hand.filter(h=>h.revealed).length;
+    _plCnt.progressHistory.push([G.round,_rv]);
+  }
+  act=null;G.act=null;nextTurn();syncToServer();render();
+}
+
+function startMoveBlind(){
+  if(!G||setupPhase||act||G.gameOver)return;
+  if(myName && G.players[G.currentPlayer].name !== myName)return;
+  const cp=G.currentPlayer;
+  const blindCount=G.players[cp].hand.filter(h=>!h.revealed).length;
+  if(blindCount<1){log('移動できる裏タイルがありません。','error');return;}
+  act={phase:'awaitMoveBlind',playerIdx:cp};
+  log(`${G.players[cp].name}: 裏タイル移動を選択。`);render();
+}
+
+// キャンセルはタイル未めくり操作(移動系)のみ
+function cancelAction(){
+  if(!act)return;
+  if(act.phase==='awaitMoveBlind'||act.phase==='awaitMoveInsert'){
+    log('裏タイル移動をキャンセルした。ターン継続。');
+    act=null;G.act=null;syncToServer();render();
+  }
+  // awaitSwap(めくり済み)はキャンセル不可
+}
+
+// ════════════════════════════════════════════
+//  MOVE-INSERT HELPERS
+// ════════════════════════════════════════════
+
+// handWithout = hand array with the moving tile removed
+// gi = gap index (0 = before first tile, N = after last tile)
+// Blocked if the two revealed tiles immediately flanking this gap are consecutive
+function isGapBlockedForInsert(handWithout, gi){
+  // Blocked ONLY when the two PHYSICALLY ADJACENT tiles on each side are
+  // both revealed AND consecutive (a blind tile in between breaks adjacency)
+  const left  = gi > 0                    ? handWithout[gi-1] : null;
+  const right = gi < handWithout.length   ? handWithout[gi]   : null;
+  if(left && right && left.revealed && right.revealed){
+    if(Math.abs(right.tile.num - left.tile.num) === 1) return true;
+  }
+  return false;
+}
+
+// Perform the actual insert: remove tile from originalIdx, splice into new gap position
+function doMoveInsert(gapIdx){
+  if(!act||act.phase!=='awaitMoveInsert')return;
+  const player=G.players[G.currentPlayer];
+  const from=act.selectedHandIdx;
+  const movedTile=player.hand.splice(from,1)[0]; // remove tile
+  // gapIdx was computed on handWithout (hand without the moving tile)
+  // after removal, direct splice at gapIdx is correct
+  player.hand.splice(gapIdx,0,movedTile);
+  const newPos=gapIdx+1;
+  insertAnim={pi:G.currentPlayer, hi:gapIdx};
+  log(`${player.name}: 裏タイルを位置${from+1}から位置${newPos}へ差し込んだ。`);
+  // グラフ用進捗記録（裏タイル移動時も点を打つ）
+  if(player.progressHistory){
+    const _rv=player.hand.filter(h=>h.revealed).length;
+    player.progressHistory.push([G.round,_rv]);
+  }
+  act=null;G.act=null;nextTurn();syncToServer();render();
+}
+
+// ════════════════════════════════════════════
+//  LOGIC HELPERS
+// ════════════════════════════════════════════
+function canFit(hand,hi,num){
+  let L=-Infinity,R=Infinity;
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){L=hand[i].tile.num;break;}
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){R=hand[i].tile.num;break;}
+  return num>L&&num<R;
+}
+function neighborStr(hand,hi){
+  let L='—',R='—';
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){L=hand[i].tile.num;break;}
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){R=hand[i].tile.num;break;}
+  return`${L} と ${R}`;
+}
+function isConsecutive(hand,hi){
+  // 0=なし, 1=片側連番, 2=両サイド連番（ダブル）
+  const cur=hand[hi].tile;
+  // 置いたタイル自体がワイルド → 表向きの隣があれば連番
+  if(cur.wild){
+    let left=false,right=false;
+    for(let i=hi-1;i>=0;i--)if(hand[i].revealed){left=true;break;}
+    for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){right=true;break;}
+    if(left&&right)return 2;
+    if(left||right)return 1;
+    return 0;
+  }
+  const curNum=cur.num;
+  let left=false,right=false;
+  for(let i=hi-1;i>=0;i--)if(hand[i].revealed){
+    const t=hand[i].tile;
+    if(t.wild||Math.abs(t.num-curNum)===1)left=true;
+    break;
+  }
+  for(let i=hi+1;i<hand.length;i++)if(hand[i].revealed){
+    const t=hand[i].tile;
+    if(t.wild||Math.abs(t.num-curNum)===1)right=true;
+    break;
+  }
+  if(left&&right)return 2;
+  if(left||right)return 1;
+  return 0;
+}
+function nextTurn(){
+  const dir = G.direction||1; // 1=正回転, -1=逆回転
+  const n = G.players.length;
+  G.currentPlayer = (G.currentPlayer + dir + n) % n;
+  if(G.currentPlayer===0) G.round++;
+}
+function checkWin(pi){
+  const pl=G.players[pi];
+  if(!pl.hand.every(h=>h.revealed))return;
+  // ワイルド込みの昇順チェック: ワイルドは前後の数字の間に収まればOK
+  const nums=pl.hand.map(h=>h.tile.wild?null:h.tile.num);
+  for(let i=1;i<nums.length;i++){
+    const prev=nums[i-1], cur=nums[i];
+    if(prev===null||cur===null) continue; // ワイルド隣接はスキップ
+    if(cur<=prev) return;
+  }
+  // ワイルドが挟まれる場合: 両隣の数字が昇順か確認
+  for(let i=0;i<nums.length;i++){
+    if(nums[i]!==null) continue;
+    const lv=nums.slice(0,i).filter(v=>v!==null).at(-1);
+    const rv=nums.slice(i+1).filter(v=>v!==null)[0];
+    if(lv!=null&&rv!=null&&lv>=rv) return;
+  }
+  G.gameOver=true;G.winner=pi;
+  log(`🏆 ${pl.name} が全タイルを昇順に！COMPLETE！`,'highlight');
+  showWin(pi);
+}
+function showWin(pi){
+  // G.result を生成（全員のスナップショット）
+  G.result = {
+    winnerIdx: pi,
+    players: G.players.map(p=>({
+      name: p.name,
+      turns: p.turns,
+      revealed: p.hand.filter(h=>h.revealed).length,
+      handSize: G.handSize,
+      progressHistory: p.progressHistory || [[0,0]],
+    })),
+    votes: {}, // {playerName: 'rematch'|'leave'}
+  };
+  syncToServer();
+  openResult();
+}
+
+function openResult(){
+  if(!G||!G.result) return;
+  const r = G.result;
+  const winner = r.players[r.winnerIdx];
+  const myVote = r.votes[myName] || null;
+
+  // ── グラフ描画 ──
+  const W=460, H=220, PAD={top:20,right:24,bottom:38,left:40};
+  const gw=W-PAD.left-PAD.right, gh=H-PAD.top-PAD.bottom;
+  const handSize = r.players[0].handSize;
+  // X軸: 全員のhistoryから最大ラウンドを取得
+  const maxRound = Math.max(...r.players.flatMap(p=>p.progressHistory.map(pt=>pt[0])), 1);
+  const colors = ['#e8d44d','#e05c4b','#5ab4e0','#7de87a','#e0a05c','#c05ae0'];
+
+  const toX = round => PAD.left + (round/maxRound)*gw;
+  const toY = v => PAD.top + gh - (v/handSize)*gh;
+
+  // 軸線
+  let svgLines = '';
+  svgLines += `<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top+gh}" stroke="#2a2a2a" stroke-width="1"/>`;
+  svgLines += `<line x1="${PAD.left}" y1="${PAD.top+gh}" x2="${PAD.left+gw}" y2="${PAD.top+gh}" stroke="#2a2a2a" stroke-width="1"/>`;
+
+  // Y軸グリッド（25%刻み）
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const yv = Math.round(f*handSize);
+    const y = toY(yv);
+    svgLines += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+gw}" y2="${y}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="4,4"/>`;
+    svgLines += `<text x="${PAD.left-6}" y="${y+4}" text-anchor="end" fill="#3a3a3a" font-size="9">${yv}</text>`;
+  });
+
+  // X軸グリッド（ラベル最大5本）
+  const xStep = Math.ceil(maxRound/5);
+  for(let r2=0; r2<=maxRound; r2+=xStep){
+    const x=toX(r2);
+    svgLines += `<line x1="${x}" y1="${PAD.top}" x2="${x}" y2="${PAD.top+gh}" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="4,4"/>`;
+    svgLines += `<text x="${x}" y="${PAD.top+gh+13}" text-anchor="middle" fill="#3a3a3a" font-size="9">${r2}</text>`;
+  }
+
+  // 軸ラベル
+  svgLines += `<text x="${W/2}" y="${H-2}" text-anchor="middle" fill="#444" font-size="9" letter-spacing="1">ROUND</text>`;
+  svgLines += `<text x="10" y="${H/2}" text-anchor="middle" fill="#444" font-size="9" transform="rotate(-90,10,${H/2})">REVEALED</text>`;
+
+  // 各プレイヤーの折れ線
+  // historyをラウンドベースでソートし、同ラウンドは最大値を使う
+  let svgPaths = '';
+  r.players.forEach((p,i)=>{
+    const col = colors[i%colors.length];
+    // progressHistoryをラウンドでソート、[0,0]は確実に含む
+    const hist = [...p.progressHistory].sort((a,b)=>a[0]-b[0]);
+    // 折れ線: 各点を順番に結ぶ（段差が見えてプレイヤーの動きがわかる）
+    const pts = hist.map(([rn,v])=>`${toX(rn).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+    svgPaths += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>`;
+    // 各記録点に小ドット
+    hist.forEach(([rn,v],di)=>{
+      const cx=toX(rn), cy=toY(v);
+      const isLast = di===hist.length-1;
+      svgPaths += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${isLast?5:2.5}" fill="${col}" opacity="${isLast?1:0.6}"/>`;
+    });
+    // 勝者に★
+    if(i===r.winnerIdx){
+      const last=hist[hist.length-1];
+      svgPaths += `<text x="${(toX(last[0])+7).toFixed(1)}" y="${(toY(last[1])-4).toFixed(1)}" fill="${col}" font-size="11" font-weight="bold">★</text>`;
+    }
+  });
+
+  // 凡例
+  let legend = r.players.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;font-size:0.62rem;color:#aaa;">
+      <span style="width:14px;height:3px;background:${colors[i%colors.length]};border-radius:2px;display:inline-block;flex-shrink:0;"></span>
+      <span style="${i===r.winnerIdx?'color:#e8d44d;font-weight:700;':''}">${p.name}${i===r.winnerIdx?' ★':''}</span>
+      <span style="color:#555;margin-left:auto;">${p.turns}手 · ${p.revealed}/${p.handSize}枚</span>
+    </div>`).join('');
+
+  // 投票状況
+  const totalPlayers = r.players.length;
+  const voteCount = Object.keys(r.votes).length;
+  const rematchCount = Object.values(r.votes).filter(v=>v==='rematch').length;
+  let voteStatus = r.players.map(p=>{
+    const v = r.votes[p.name];
+    const icon = v==='rematch'?'🔁':v==='leave'?'🚪':'…';
+    return `<span style="font-size:0.65rem;color:${v?'#aaa':'#444'};margin-right:10px;">${icon} ${p.name}</span>`;
+  }).join('');
+
+  document.getElementById('resultContent').innerHTML = `
+    <div style="font-family:'Bebas Neue',cursive;font-size:2.2rem;letter-spacing:5px;color:#e8d44d;margin-bottom:4px;">COMPLETE!</div>
+    <div style="font-size:0.8rem;color:#aaa;margin-bottom:20px;letter-spacing:2px;">— ${winner.name} WINS —</div>
+
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;border:1px solid #1e1e1e;border-radius:4px;background:#0a0a0a;display:block;margin-bottom:10px;">
+      ${svgLines}${svgPaths}
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px;">${legend}</div>
+
+    <div style="border-top:1px solid #1e1e1e;padding-top:16px;">
+      ${myVote ? `
+        <div style="font-size:0.65rem;color:#555;text-align:center;margin-bottom:12px;">投票済み: ${myVote==='rematch'?'🔁 再戦':'🚪 退室'}</div>
+      ` : `
+        <div style="font-size:0.62rem;color:#555;text-align:center;margin-bottom:10px;letter-spacing:1px;">VOTE</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn primary" onclick="voteResult('rematch')" style="flex:1;padding:11px;font-size:0.75rem;letter-spacing:2px;">🔁 再戦</button>
+          <button class="btn" onclick="voteResult('leave')" style="flex:1;padding:11px;font-size:0.72rem;border-color:#444;color:#666;">🚪 退室</button>
+        </div>
+      `}
+      <div style="margin-top:10px;font-size:0.6rem;color:#444;text-align:center;">${voteCount}/${totalPlayers} 投票済み${rematchCount>0?' · 再戦 '+rematchCount+'票':''}</div>
+      <div style="margin-top:4px;">${voteStatus}</div>
+    </div>
+  `;
+
+  const wasHidden = document.getElementById('resultOverlay').classList.contains('hidden');
+  document.getElementById('resultOverlay').classList.remove('hidden');
+  // 勝利パーティクルは初回表示時のみ
+  if(wasHidden){
+    setTimeout(()=>spawnParticles(window.innerWidth/2, window.innerHeight/3, 40),300);
+    setTimeout(()=>spawnParticles(window.innerWidth/3, window.innerHeight/2, 25),600);
+    setTimeout(()=>spawnParticles(window.innerWidth*2/3, window.innerHeight/2, 25),800);
+  }
+  // 全員投票済みか確認（sync受信時にも判定させる）
+  checkVotes();
+}
+
+function voteResult(vote){
+  if(!G||!G.result) return;
+  G.result.votes[myName] = vote;
+  syncToServer();
+  openResult();
+}
+
+// 投票集計：openResult末尾＆sync受信時に呼ばれる
+function checkVotes(){
+  if(!G||!G.result) return;
+  const r = G.result;
+  const allVoted = r.players.every(p=>r.votes[p.name]);
+  if(!allVoted) return;
+  const allRematch = r.players.every(p=>r.votes[p.name]==='rematch');
+  if(allRematch){
+    if(amIHost) setTimeout(()=>rematch(), 500);
+  } else {
+    // 退出票あり → 自分が退出を選んでいたらリロード
+    if(r.votes[myName]==='leave') { /* debug: no redirect */ }
+  }
+}
+
+// リマッチ：同じメンバーでホストが即再戦
+function rematch(){
+  if(!amIHost||!ws)return;
+  // 名前リストを保持したままhostStartGameを再実行
+  const names=shuffle(G.players.map(p=>p.name)); // リマッチも順番シャッフル
+  const count=names.length;
+  const nums=shuffle([...Array(100)].map((_,i)=>i+1));
+  let idx=0;
+  const HAND_BLIND=getHandBlind(count);
+  const HAND_REVEAL=getHandReveal(count);
+  const players=[];
+  for(let p=0;p<count;p++){
+    const hand=nums.slice(idx,idx+HAND_BLIND).map(n=>({tile:makeTile(n),revealed:false}));
+    idx+=HAND_BLIND;
+    const revealTiles=nums.slice(idx,idx+HAND_REVEAL).map(makeTile);
+    idx+=HAND_REVEAL;
+    revealTiles.sort((a,b)=>a.num-b.num);
+    players.push({name:names[p],hand,revealTiles,revealTilesTotal:revealTiles.length,turns:0,progressHistory:[[0,0]]});
+  }
+  const playerSetups=players.map(()=>({currentRevealIdx:0,selectedInHand:false,useRev:false,done:false}));
+  act=null;
+  G={players,currentPlayer:0,pool:nums.slice(idx).map(makeTile),discard:[],round:1,gameOver:false,handSize:HAND_BLIND+HAND_REVEAL,playerSetups,direction:1};
+  document.getElementById('resultOverlay').classList.add('hidden');
+  ws.send(JSON.stringify({type:'start',G}));
+}
+function flashTile(pi,hi){
+  const row=document.getElementById(`tileRow${pi}`);if(!row)return;
+  const el=row.children[hi];if(!el)return;
+  el.classList.add('invalid-flash');
+  setTimeout(()=>el.classList.remove('invalid-flash'),400);
+}
+
+// 連番ボーナスエフェクト：タイル発光 + パーティクル
+function bonusEffect(pi, hi){
+  const row=document.getElementById(`tileRow${pi}`);
+  if(!row)return;
+  // 手札にgapSlotが混じるのでrealIndexを算出
+  const tiles=[...row.children].filter(el=>el.classList.contains('tile'));
+  const el=tiles[hi];
+  if(!el)return;
+  el.classList.add('bonus-flash');
+  setTimeout(()=>el.classList.remove('bonus-flash'),800);
+  // パーティクル
+  const rect=el.getBoundingClientRect();
+  spawnParticles(rect.left+rect.width/2, rect.top+rect.height/2, 18);
+}
+
+function spawnParticles(x, y, count){
+  const container=document.getElementById('particles');
+  const colors=['#e8d44d','#f0e060','#fff8a0','#e8b040','#ffffff'];
+  for(let i=0;i<count;i++){
+    const p=document.createElement('div');
+    p.className='particle';
+    const angle=Math.random()*Math.PI*2;
+    const dist=60+Math.random()*80;
+    const dx=Math.cos(angle)*dist;
+    const dy=Math.sin(angle)*dist - 40;
+    const dur=0.4+Math.random()*0.5;
+    p.style.cssText=`left:${x}px;top:${y}px;background:${colors[i%colors.length]};
+      --dx:${dx}px;--dy:${dy}px;animation-duration:${dur}s;
+      width:${4+Math.random()*5}px;height:${4+Math.random()*5}px;`;
+    container.appendChild(p);
+    setTimeout(()=>p.remove(), dur*1000+100);
+  }
+}
+
+// ターン移行バナー表示
+let turnBannerTimer=null;
+function showTurnBanner(name){
+  const banner=document.getElementById('turnBanner');
+  const nameEl=document.getElementById('turnBannerName');
+  if(!banner||!nameEl)return;
+  nameEl.textContent=name;
+  banner.classList.add('show');
+  if(turnBannerTimer)clearTimeout(turnBannerTimer);
+  turnBannerTimer=setTimeout(()=>banner.classList.remove('show'),1400);
+}
+
+// ── DOM HELPERS ──
+function clearPlayerZones(){
+  [...document.getElementById('gameWrap').querySelectorAll('.player-zone')].forEach(el=>el.remove());
+}
+function insertPlayerZone(div){
+  const gw=document.getElementById('gameWrap');
+  gw.insertBefore(div,document.getElementById('centerZone'));
+}
+
+// ════════════════════════════════════════════
+//  VERSION & CHANGELOG
+// ════════════════════════════════════════════
+const CURRENT_VERSION = 'beta 2.1.0';
+
+const CHANGELOG = [
+  {
+    version: 'beta 2.1.0',
+    date: '2026-03-02',
+    items: [
+      { text: 'OGPメタタグ追加（Twitter/LINEでのリンクプレビュー対応）', highlight: true },
+      { text: 'タイトル画面ロゴをリッチなアニメーション付きデザインに', highlight: true },
+      { text: 'ロビーにURL共有ボタン追加（コピー・LINE送信）', highlight: true },
+      { text: 'URLパラメータから部屋名を自動入力（招待リンク対応）', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.9',
+    date: '2026-03-01',
+    items: [
+      { text: '準備フェーズUIをシンプルな表示に戻した', highlight: false },
+      { text: 'どんぐりころころ: アニメのインデックスズレを修正', highlight: true },
+      { text: '一か八か表: 説明文を更新', highlight: false },
+      { text: '一か八か表: 捨て後の達成枚数が手札サイズに合わせて変動', highlight: true },
+      { text: 'お前のものは俺の物: ルーレットが全員に表示されるよう修正', highlight: true },
+      { text: '全プレイヤーのログを全員に表示', highlight: true },
+      { text: 'リザルトSEが全員に流れるよう修正', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.8',
+    date: '2026-02-28',
+    items: [
+      { text: 'プレイヤー左側に回転方向矢印を追加', highlight: true },
+      { text: '一か八か・表: ワイルドカード削除→裏向きタイルを1枚捨てる効果に変更', highlight: true },
+      { text: '一か八か: 観戦者のコインフリップモーダルが消えないバグを修正', highlight: true },
+      { text: 'どんぐりころころ: 選択時にハイライト拡大→裏返しの2段階アニメに変更', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.7',
+    date: '2026-02-28',
+    items: [
+      { text: '一か八か・表: ワイルドカード（☆）獲得に効果変更', highlight: true },
+      { text: 'ワイルドカード: 手札の好きな位置に配置、連番ボーナス発動', highlight: true },
+      { text: 'ワイルドカード: COMPLETEの昇順チェックに対応', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.6',
+    date: '2026-02-27',
+    items: [
+      { text: '一か八か: コインフリップが全員に表示されるよう修正', highlight: true },
+      { text: '一か八か: 観戦者がボタンをクリックできるバグ修正', highlight: true },
+      { text: '一か八か: 表で2回行動できるよう修正', highlight: true },
+      { text: 'どんぐりころころ: カードが裏返らないバグ修正', highlight: true },
+      { text: 'お前のものは俺の物: スロット式ルーレットに変更・全員表示・SE静かに', highlight: true },
+      { text: '高速回転: 余計なターン終了が入るバグ修正', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.5',
+    date: '2026-02-27',
+    items: [
+      { text: 'コインフリップが全員に表示されるように修正', highlight: true },
+      { text: '裏が出た後ターンが終了するよう修正（継続していたバグ修正）', highlight: true },
+      { text: '逆回転時のスキップ方向を修正', highlight: true },
+      { text: 'どんぐりころころにアニメ強化・待機追加', highlight: true },
+      { text: '観戦者モーダルがタイムアウトで消えるバグを修正', highlight: true },
+      { text: 'お前のものは俺の物にルーレット演出を追加', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.4',
+    date: '2026-02-27',
+    items: [
+      { text: '選択前にモーダルが消えるバグを修正', highlight: true },
+      { text: 'コインフリップ後に進行不能になるバグを修正', highlight: true },
+      { text: 'もう一回！で次のプレイヤーのターンになるバグを修正', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.3',
+    date: '2026-02-27',
+    items: [
+      { text: 'もう一回！選択後にターンが終了するバグを修正', highlight: true },
+      { text: '効果カード選択モーダルが表示されないことがあるバグを修正', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.2',
+    date: '2026-02-27',
+    items: [
+      { text: '一か八か: コインフリップ効果カード追加（表→山札/捨て場取得、裏→表タイル裏返し）', highlight: true },
+      { text: 'お前のものは俺の物: ランダムプレイヤーと手札全交換カード追加', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 2.0.1',
+    date: '2026-02-27',
+    items: [
+      { text: '効果カードモーダルが全員に表示されるように', highlight: true },
+      { text: 'スキップ廃止: 効果カードは必ず発動', highlight: true },
+      { text: '両サイド連番（ダブル）で効果カードを2枚引ける', highlight: true },
+      { text: '高速回転: ターン順が逆回転になる効果カード追加', highlight: true },
+      { text: 'ヘッダーにターン方向インジケータ（↻ / ↺）追加' },
+      { text: '高速回転時のnextTurnが方向に対応' },
+    ]
+  },
+  {
+    version: 'beta 2.0.0',
+    date: '2026-02-27',
+    items: [
+      { text: '効果カードシステム実装（連番達成でランダムに1枚引く）', highlight: true },
+      { text: 'どんぐりころころ: 任意の表タイルを裏返す（派手アニメ+SE）', highlight: true },
+      { text: 'もう一回！×2: もう一度自分のターン', highlight: true },
+      { text: 'ひとつ飛ばしてべっぴんさん: 次プレイヤーをスキップ', highlight: true },
+      { text: 'レディーファースト: 任意のプレイヤーにターンを渡す', highlight: true },
+      { text: '旧・萬國驚天掌・awaitBonusフロー廃止', },
+    ]
+  },
+  {
+    version: 'beta 1.8.2',
+    date: '2026-02-27',
+    items: [
+      { text: '萬國驚天掌：連番達成時に相手の表タイルを山札に戻す妨害アクション（使用後ターン終了）', highlight: true },
+      { text: 'グラフ改善：パス・置けない・裏タイル移動時も進捗点を記録', highlight: true },
+      { text: 'ドロー音を極めてソフトな音に再調整', highlight: true },
+    ]
+  },
+  {
+    version: 'beta 1.8.1',
+    date: '2026-02-27',
+    items: [
+      { text: 'ドローSEを柔らかい音に変更', highlight: true },
+      { text: 'リザルトグラフ修正: X軸をラウンド共通軸に、各点を記録', highlight: true },
+      { text: '全員再戦投票しても次ゲームに進まないバグを修正', highlight: true },
+      { text: 'バージョン表記を beta X.X.X 形式に変更' },
+    ]
+  },
+  {
+    version: 'beta 1.8.0',
+    date: '2026-02-27',
+    items: [
+      { text: 'リザルト画面：進捗グラフ・全員投票システム', highlight: true },
+      { text: '再戦/退出の投票が全員にリアルタイム同期' },
+      { text: 'バージョン日付を YYYY-MM-DD 形式に変更' },
+    ]
+  },
+  {
+    version: 'beta 1.7.0',
+    date: '2026-02-27',
+    items: [
+      { text: 'タイル差し込み・交換アニメーション追加', highlight: true },
+      { text: 'ロゴ配色変更（NUM黄 / LETTO赤）', highlight: true },
+      { text: 'プレイヤー順をゲーム開始時にランダムシャッフル', highlight: true },
+      { text: '達成率（%）表示を削除、枚数のみに整理' },
+    ]
+  },
+  {
+    version: 'beta 1.6.0',
+    date: '2026-02-26',
+    items: [
+      { text: '置ける位置をグリーンでハイライト表示', highlight: true },
+      { text: '連番達成時に発光＋パーティクルエフェクト', highlight: true },
+      { text: 'ターン開始時のバナー演出追加', highlight: true },
+      { text: 'リマッチ機能（同メンバーで即再戦）', highlight: true },
+      { text: '勝利時のパーティクル演出' },
+    ]
+  },
+  {
+    version: 'beta 1.5.0',
+    date: '2026-02-26',
+    items: [
+      { text: '他プレイヤーの操作SEを全員に配信', highlight: true },
+      { text: '自分のターン開始専用SE追加', highlight: true },
+      { text: 'WebSocket自動再接続（バックオフ付き）', highlight: true },
+      { text: 'Heartbeat pingでアイドル切断防止' },
+      { text: '再接続後のゲーム状態自動復元（resync）' },
+    ]
+  },
+  {
+    version: 'beta 1.4.0',
+    date: '2026-02-25',
+    items: [
+      { text: '準備フェーズを全員同時進行に変更', highlight: true },
+      { text: '準備フェーズの昇順チェック修正' },
+      { text: 'SE全般: masterVolumeで音量調整対応' },
+      { text: '他人のターンでの操作を表示レベルで無効化' },
+    ]
+  },
+  {
+    version: 'beta 1.3.0',
+    date: '2026-02-25',
+    items: [
+      { text: 'WebAudio SEエンジン追加（外部ファイル不要）', highlight: true },
+      { text: 'めくる・配置・連番・捨てる・エラー・勝利のSE' },
+      { text: '他人のタイル操作防止ガード' },
+    ]
+  },
+  {
+    version: 'beta 1.2.0',
+    date: '2026-02-24',
+    items: [
+      { text: 'G.actをサーバー経由で同期（めくり状態が全員に見える）', highlight: true },
+      { text: 'WebSocketエラー/クローズハンドラ整理' },
+    ]
+  },
+  {
+    version: 'beta 1.1.0',
+    date: '2026-02-24',
+    items: [
+      { text: 'オンライン専用マルチプレイヤー化（PartyKit）', highlight: true },
+      { text: 'ロビー/待合室システム', highlight: true },
+      { text: 'ホスト制御によるゲーム開始' },
+      { text: 'NUMERETTO → NUMLETTO に改名' },
+    ]
+  },
+  {
+    version: 'beta 1.0.0',
+    date: '2026-02-23',
+    items: [
+      { text: 'ローカルホットシート版リリース', highlight: true },
+      { text: '2〜6人対応、裏タイル・連番ボーナス・手番交代' },
+      { text: '反転タイル(1/6/8/9)、盲目スワップ、捨て場システム' },
+    ]
+  },
+];
+
+function openChangelog(){
+  const content = document.getElementById('changelogContent');
+  content.innerHTML = CHANGELOG.map((v,i) => `
+    <div class="cl-version">
+      <div class="cl-version-head">
+        <span class="cl-ver-num">${v.version}</span>
+        <span class="cl-ver-date">${v.date}</span>
+        ${i===0 ? '<span class="cl-ver-current">CURRENT</span>' : ''}
+      </div>
+      <ul class="cl-items">
+        ${v.items.map(item =>
+          `<li class="${item.highlight?'highlight':''}">${item.text}</li>`
+        ).join('')}
+      </ul>
+    </div>
+  `).join('');
+  document.getElementById('changelogOverlay').classList.add('show');
+}
+
+function closeChangelog(){
+  document.getElementById('changelogOverlay').classList.remove('show');
+}
+
+// バージョンバッジを最新バージョンで更新
+function initVersion(){
+  document.querySelectorAll('.version-badge, #hdrVersion').forEach(el => {
+    el.textContent = CURRENT_VERSION;
+  });
+}
+
+document.addEventListener("DOMContentLoaded", initVersion);
+initVersion();
+</script>
+</body>
+</html>
