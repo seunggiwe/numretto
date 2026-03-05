@@ -17,7 +17,7 @@
 <meta name="twitter:title" content="NUMLETTO — 数字並べ対戦ゲーム">
 <meta name="twitter:description" content="1〜100のタイルを昇順に並べろ。最大6人のリアルタイム対戦。インストール不要。">
 <meta name="twitter:image" content="https://seunggiwe.github.io/numeretto/ogp.png">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@400;600&family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Gamja+Flower&family=Unica+One&family=Quicksand:wght@700&family=Roboto+Mono:wght@400;600&family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:        #0a0a0a;
@@ -71,7 +71,7 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
   box-shadow:0 3px 12px rgba(0,0,0,0.3);
   transform:rotateY(180deg);
   color:var(--ft);
-  font-family:'Bebas Neue',cursive;
+  font-family:'Unica One',cursive;
   user-select:none;
 }
 
@@ -81,10 +81,10 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
   pointer-events:none;
 }
 .cw.title-card .cv{
-  font-family:'Space Mono',monospace;
-  font-weight:700;
-  font-size:inherit; /* JS で設定 */
-  box-shadow:0 4px 20px rgba(0,0,0,0.45);
+  font-family:'Quicksand',sans-serif;
+  font-weight:400;
+  font-size:inherit;
+  box-shadow:none;
 }
 
 /* ── GOカード ── */
@@ -94,8 +94,8 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
   box-shadow:0 0 0 1px rgba(232,212,77,0.2),0 6px 30px rgba(0,0,0,0.65);
 }
 .cw.go-card .cv{flex-direction:column;}
-.play-label{font-family:'Bebas Neue',cursive;letter-spacing:0.1em;color:var(--ft);line-height:1;}
-.play-hint{font-family:'Bebas Neue',cursive;color:#888;letter-spacing:0.22em;margin-top:5px;}
+.play-label{font-family:'Unica One',cursive;letter-spacing:0.1em;color:var(--ft);line-height:1;}
+.play-hint{font-family:'Unica One',cursive;color:#888;letter-spacing:0.22em;margin-top:5px;}
 
 /* ── 波flip時: 表面を黒い第3面として表示 ── */
 .cw.wave-flipped .cv{
@@ -138,13 +138,14 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
 .logo-sub-mo{font-size:0.6rem;letter-spacing:4px;color:var(--muted);}
 .setup-options{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
 .setup-row{display:flex;justify-content:space-between;align-items:center;gap:12px;}
-.setup-row label{font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);white-space:nowrap;}
+.setup-row label{font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);white-space:nowrap;min-width:4em;}
 .setup-row input{
-  background:var(--panel);border:1px solid var(--border);color:var(--text);
-  font-family:'Roboto Mono',monospace;font-size:0.7rem;padding:6px 10px;border-radius:3px;
+  background:#2a2a2a;border:1px solid #444;color:var(--text);
+  font-family:'Roboto Mono',monospace;font-size:0.85rem;padding:10px 14px;border-radius:4px;
   outline:none;width:100%;transition:border-color 0.15s;
 }
-.setup-row input:focus{border-color:var(--accent);}
+.setup-row input::placeholder{color:#666;}
+.setup-row input:focus{border-color:var(--accent);background:#333;}
 .btn{font-family:'Roboto Mono',monospace;font-size:0.7rem;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:3px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:transparent;color:var(--text);}
 .btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
 .btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
@@ -181,15 +182,8 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
 </div>
 <div id="ui-persons"></div>
 <div id="mo">
-  <div class="overlay-card" style="max-width:420px;padding-top:36px;">
+  <div class="overlay-card" style="max-width:420px;padding-top:28px;">
     <div class="numletto-logo">
-      <div class="logo-tiles">
-        <span class="logo-tile"></span>
-        <span class="logo-tile"></span>
-        <span class="logo-tile"></span>
-        <span class="logo-tile"></span>
-        <span class="logo-tile"></span>
-      </div>
       <h1 class="logo-title">NUMLETTO</h1>
       <div class="logo-sub-mo">数字並べ対戦ゲーム</div>
     </div>
@@ -209,7 +203,7 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
     </div>
     <p style="font-size:0.6rem;color:var(--muted);margin:10px 0 16px;">同じ合言葉を入力した人が同じ部屋に集まります</p>
     <button class="btn primary" id="btnConnect" onclick="connectAction()"
-      style="width:100%;padding:12px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
+      style="width:auto;padding:12px 32px;font-size:0.8rem;letter-spacing:2px;">ENTER ROOM</button>
     <p id="connectError" style="font-size:0.65rem;color:#e05c4b;margin-top:8px;min-height:16px;"></p>
   </div>
 </div>
@@ -217,7 +211,7 @@ body{background:#151515;color:var(--text);font-family:'Noto Sans JP',sans-serif;
 
 
 <script>
-const GAME_URL = './completto.html';
+const GAME_URL = './numletto.html';
 const LETTERS  = ['N','U','M','L','E','T','T','O'];
 
 
@@ -292,11 +286,11 @@ function _doWaveFlip(){
 
   allWraps.forEach(w=>{ w.style.pointerEvents='none'; });
 
-  const TITLE_FLIP_DUR = 280;
-  const TITLE_INTERVAL = 55;
-  const WAVE_DELAY     = 200;
-  const WAVE_DURATION  = 900;
-  const FLIP_DUR       = 380;
+  const TITLE_FLIP_DUR = 500;
+  const TITLE_INTERVAL = 120;
+  const WAVE_DELAY     = 0;
+  const WAVE_DURATION  = 2000;
+  const FLIP_DUR       = 800;
 
   // ① NUMLETTOを左→右に右めくりで裏へ（180→360、その後0にリセット）
   titleCards.forEach((w, i)=>{
@@ -313,8 +307,8 @@ function _doWaveFlip(){
     }, i * TITLE_INTERVAL);
   });
 
-  // ② 裏向き完了後に波スタート
-  const waveStart = titleCards.length * TITLE_INTERVAL + TITLE_FLIP_DUR + WAVE_DELAY;
+  // ② 最後のタイトルカードのめくれ開始と同時に波スタート
+  const waveStart = (titleCards.length - 1) * TITLE_INTERVAL;
 
   const getEntries = list => list.map(w=>{
     const r = w.getBoundingClientRect();
@@ -337,7 +331,7 @@ function _doWaveFlip(){
         w.classList.add('wave-flipped');
       }, delay);
     });
-    setTimeout(()=>{ openModal(); }, WAVE_DURATION + FLIP_DUR + 80);
+    setTimeout(()=>{ openModal(); }, WAVE_DURATION + 200);
   }, waveStart);
 }
 
@@ -357,7 +351,7 @@ function closeModal(){
 
   allWraps.forEach(w=>{ w.style.pointerEvents='none'; });
 
-  const WAVE_DURATION  = 2000; // デバッグ用
+  const WAVE_DURATION  = 2000;
   const FLIP_DUR       = 800;
   const TITLE_FLIP_DUR = 500;
   const TITLE_INTERVAL = 120;
@@ -433,29 +427,23 @@ function build(){
 
   const vw=window.innerWidth, vh=window.innerHeight;
   const gap=4;
-  const margin=12;
+  const w=68, h=85;
 
-  // ── カードサイズ固定（アスペクト比4:5） ──
-  const BASE_W = 68, BASE_H = 85; // px
-  const w = BASE_W, h = BASE_H;
+  // 画面を埋めるのに必要な列・行数（はみ出しあり、colsは偶数、rowsは奇数）
+  let cols = Math.ceil((vw + gap) / (w + gap));
+  if(cols % 2 !== 0) cols++;
+  cols += 2; // 左右に1列ずつ余分に
 
-  // 列・行数を画面サイズから逆算（偶数に丸める：8文字タイトルを左右対称に配置するため）
-  let cols = Math.floor((vw - margin*2 + gap) / (w + gap));
-  if(cols % 2 !== 0) cols--;
-  if(cols < 10) cols = 10;
-
-  let rows = Math.floor((vh - margin*2 + gap) / (h + gap));
-  if(rows % 2 === 0) rows--;
-  if(rows < 5) rows = 5;
-  rows -= 1;
+  let rows = Math.ceil((vh + gap) / (h + gap));
+  if(rows % 2 === 0) rows++;
+  rows += 2; // 上下に1行ずつ余分に
 
   // グリッド全体を画面中央に配置
   const totalW = cols*(w+gap)-gap;
   const totalH = rows*(h+gap)-gap;
-  const topMargin = 20;
   const ox = Math.round((vw - totalW) / 2);
-  const oy = Math.round((vh - totalH) / 2) - (h + gap) + topMargin;
-  const ox2 = ox; // タイトルは常にgrid中央列に配置するのでシフト不要
+  const oy = Math.round((vh - totalH) / 2);
+  const ox2 = ox;
 
   // ── タイトル行・GOカード行の決定（常に画面中央） ──
   const titleRow = Math.floor(rows / 2) - 1;
