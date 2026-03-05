@@ -176,9 +176,10 @@
   /* ── 効果カードモーダル ── */
   #effectCardModal{
     position:fixed;inset:0;background:rgba(0,0,0,0.88);
-    display:flex;align-items:center;justify-content:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
     z-index:400;backdrop-filter:blur(8px);
     opacity:0;pointer-events:none;transition:opacity 0.25s;
+    overflow-y:auto;padding:24px 12px;
   }
   #effectCardModal.show{opacity:1;pointer-events:all;}
 
@@ -213,44 +214,50 @@
 
   /* 2枚選択レイアウト */
   #ecChoiceWrap{
-    display:flex;align-items:stretch;gap:0;
-    max-width:700px;width:96%;
+    display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:16px;
+    max-width:900px;width:96%;
   }
   .ec-card-choice{
-    flex:1;background:var(--surface);
-    padding:32px 28px;text-align:center;
+    width:108px;height:162px;flex-shrink:0;
+    background:linear-gradient(160deg,#1a1a2e 0%,#16213e 100%);
+    padding:14px 10px 12px;text-align:center;
     cursor:pointer;
-    transition:background 0.15s,transform 0.15s,box-shadow 0.15s;
+    transition:transform 0.18s,box-shadow 0.18s;
     position:relative;
     border:2px solid var(--border);
+    border-radius:8px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.5);
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
   }
-  .ec-card-choice:first-child{border-radius:12px 0 0 12px;}
-  .ec-card-choice:last-child{border-radius:0 12px 12px 0;}
   .ec-card-choice:hover{
-    background:var(--panel);
-    transform:translateY(-6px) scale(1.02);
+    transform:translateY(-10px) scale(1.07);
+    box-shadow:0 18px 40px rgba(0,0,0,0.7);
     z-index:2;
   }
+  .ec-card-choice .ec-card-icon{
+    font-size:1.6rem;display:block;flex-shrink:0;
+  }
   .ec-card-choice .ec-card-label{
-    font-size:0.55rem;letter-spacing:3px;color:var(--muted);
-    margin-bottom:14px;text-transform:uppercase;
+    font-size:0.4rem;letter-spacing:2px;color:var(--muted);
+    text-transform:uppercase;flex-shrink:0;
   }
   .ec-card-choice .ec-card-name{
-    font-family:'Bebas Neue',cursive;font-size:1.9rem;letter-spacing:3px;
-    line-height:1.1;margin-bottom:14px;
+    font-family:'Bebas Neue',cursive;font-size:0.95rem;letter-spacing:1px;
+    line-height:1.2;flex-shrink:0;
   }
   .ec-card-choice .ec-card-divider{
-    width:40px;height:2px;margin:0 auto 14px;border-radius:2px;
+    width:24px;height:1px;border-radius:1px;flex-shrink:0;
   }
   .ec-card-choice .ec-card-desc{
-    font-size:0.65rem;color:#777;line-height:1.85;white-space:pre-line;
+    font-size:0.44rem;color:#666;line-height:1.55;white-space:pre-line;flex-shrink:0;
   }
   .ec-card-choice .ec-card-select{
-    margin-top:22px;font-size:0.6rem;letter-spacing:2px;
+    font-size:0.4rem;letter-spacing:1.5px;
     color:var(--muted);text-transform:uppercase;
-    transition:color 0.15s;
+    transition:color 0.15s;flex-shrink:0;
   }
   .ec-card-choice:hover .ec-card-select{color:var(--text);}
+  .ec-card-choice:hover .ec-card-icon{filter:drop-shadow(0 0 6px currentColor);}
 
   /* 上部ラベル */
   #ecChoiceLabel{
@@ -264,7 +271,15 @@
   #ecChoiceWrap .ec-card-choice{
     animation:ec-choice-in 0.35s cubic-bezier(0.22,1,0.36,1) both;
   }
-  #ecChoiceWrap .ec-card-choice:nth-child(3){animation-delay:0.08s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(2){animation-delay:0.05s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(3){animation-delay:0.10s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(4){animation-delay:0.15s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(5){animation-delay:0.20s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(6){animation-delay:0.25s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(7){animation-delay:0.30s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(8){animation-delay:0.35s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(9){animation-delay:0.40s;}
+  #ecChoiceWrap .ec-card-choice:nth-child(10){animation-delay:0.45s;}
   /* 選択アニメ */
   @keyframes ec-selected{
     0%  {transform:translateY(0) scale(1);}
@@ -462,31 +477,100 @@
   .center-zone{
     background:var(--panel);
     border-top:1px solid var(--border);border-bottom:1px solid var(--border);
-    padding:16px 24px;
-    display:flex;flex-direction:column;gap:14px;
+    display:flex;flex-direction:column;
+    flex:1;min-height:0;
   }
 
   /* Pool spread row */
+  /* ── CARD AREA DRAWER ── */
+  .card-area-drawer{
+    position:fixed;left:0;right:0;
+    background:var(--surface);
+    border-bottom:2px solid var(--border);
+    border-radius:0 0 12px 12px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+    z-index:200;
+    top:calc(-1 * var(--drawer-h, 33vh));
+    transition:transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .card-area-drawer.open{transform:translateY(calc(var(--drawer-h, 33vh) + var(--header-h, 38px)));}
+  .card-area-handle{
+    position:absolute;bottom:0;left:0;right:0;height:28px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    background:var(--surface);border-top:1px solid var(--border);
+    cursor:pointer;z-index:2;transition:background 0.15s;
+  }
+  .card-area-handle:hover{background:var(--panel);}
+  .handle-arrow{font-size:0.65rem;color:var(--muted);transition:transform 0.3s;}
+  .card-area-drawer.open .handle-arrow{transform:rotate(180deg);}
+  .handle-label{font-size:0.55rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  .card-scatter{position:absolute;inset:0 0 28px 0;overflow:hidden;}
+  .scatter-tile{
+    position:absolute;width:48px;height:60px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:1rem;
+    user-select:none;border:2px solid transparent;
+    transition:box-shadow 0.15s,border-color 0.15s;
+  }
+  .scatter-tile.pool-tile{
+    background:var(--face-down);border-color:var(--face-down-border);
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.02) 4px,rgba(255,255,255,0.02) 5px);
+    cursor:pointer;
+  }
+  .scatter-tile.pool-tile:hover{
+    box-shadow:0 8px 24px rgba(42,74,106,0.8);border-color:#4a8aba;
+    z-index:100 !important;transform:rotate(var(--rot)) scale(1.12) !important;
+  }
+  .scatter-tile.discard-tile{
+    background:var(--revealed);border-color:#c8c0a8;
+    color:var(--revealed-text);box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .scatter-tile.discard-tile.takeable{cursor:pointer;}
+  .scatter-tile.discard-tile.takeable:hover{
+    box-shadow:0 8px 24px rgba(232,212,77,0.4);border-color:var(--accent);
+    z-index:100 !important;transform:rotate(var(--rot)) scale(1.12) !important;
+  }
+  .scatter-tile.ikka-target{
+    border-color:#ffd700 !important;box-shadow:0 0 14px rgba(255,215,0,0.7) !important;cursor:crosshair !important;
+  }
+  .scatter-who{
+    position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);
+    font-size:0.42rem;color:var(--muted);letter-spacing:0.5px;
+    white-space:nowrap;pointer-events:none;
+  }
+  .scatter-tile .new-dot{
+    position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;
+    background:var(--accent2);border:2px solid var(--panel);animation:blink 1s ease infinite;
+  }
+  #dragGhost{
+    position:fixed;pointer-events:none;z-index:999;
+    width:48px;height:60px;border-radius:5px;
+    background:var(--revealed);border:2px solid var(--accent);
+    color:var(--revealed-text);font-weight:600;font-size:1rem;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 12px 32px rgba(232,212,77,0.4);opacity:0;transition:opacity 0.1s;
+  }
+  .tile.dragging{opacity:0.35;}
+  .card-area-trigger{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;width:100%;height:100%;cursor:pointer;
+    background:transparent;border:none;color:var(--text);font-family:'Roboto Mono',monospace;
+  }
+  .trigger-icon{position:relative;width:80px;height:44px;}
+  .trigger-mini-tile{
+    position:absolute;width:32px;height:42px;border-radius:3px;
+    background:var(--face-down);border:1.5px solid var(--face-down-border);
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.02) 3px,rgba(255,255,255,0.02) 4px);
+  }
+  .trigger-label{font-size:0.75rem;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-top:8px;}
+  .trigger-hint{font-size:0.48rem;letter-spacing:1px;color:var(--muted);margin-top:8px;}
+  /* 後方互換 */
   .pool-section{}
   .pool-label-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
   .center-label{font-size:0.58rem;text-transform:uppercase;letter-spacing:2px;color:var(--muted);}
-  .pool-count-badge{
-    font-size:0.6rem;color:var(--muted);border:1px solid var(--border);
-    padding:1px 7px;border-radius:10px;letter-spacing:1px;
-  }
-  .pool-grid{
-    display:flex;flex-wrap:wrap;gap:4px;
-    max-height:200px;overflow-y:auto;
-    padding:4px 0;
-  }
-  /* Pool tiles: face-down but clickable */
   .tile.pool-tile{cursor:pointer;border-color:var(--face-down-border);}
-  .tile.pool-tile:hover{transform:translateY(-5px);box-shadow:0 8px 20px rgba(42,74,106,0.6);border-color:#4a8aba;}
-  /* Pool tile that has been selected (flipping) */
-  .tile.pool-tile.flipping{
-    animation:flipCard 0.35s ease forwards;
-    pointer-events:none;
-  }
+  .tile.pool-tile:hover{box-shadow:0 8px 20px rgba(42,74,106,0.6);border-color:#4a8aba;}
+  .tile.pool-tile.flipping{animation:flipCard 0.35s ease forwards;pointer-events:none;}
   @keyframes flipCard{
     0%  {transform:rotateY(0deg)   translateY(0);}
     50% {transform:rotateY(90deg)  translateY(-8px);}
@@ -517,22 +601,6 @@
   .drawn-banner-sub{font-size:0.72rem;color:var(--text);}
   .drawn-banner-rev{font-size:0.62rem;color:var(--muted);}
 
-  /* ── DISCARD ZONE ── */
-  .discard-section{}
-  .discard-scroll{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow-y:auto;padding:2px 0;}
-  /* Discard tile with attribution */
-  .discard-entry{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
-  .discard-entry .tile{cursor:pointer;}
-  .discard-entry .tile:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 6px 16px rgba(232,212,77,0.3);}
-  .discard-who{font-size:0.52rem;color:var(--muted);letter-spacing:0.5px;max-width:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  /* NEW label on freshly discarded tile */
-  .discard-entry .new-dot{
-    position:absolute;top:-4px;right:-4px;
-    width:10px;height:10px;border-radius:50%;
-    background:var(--accent2);
-    border:2px solid var(--panel);
-    animation:blink 1s ease infinite;
-  }
   @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
 
   /* ── ACTION PANEL ── */
@@ -762,7 +830,7 @@
 <body>
 
 <!-- TITLE: 接続画面 -->
-<div class="overlay" id="titleOverlay">
+<div class="overlay hidden" id="titleOverlay">
   <div class="overlay-card" style="max-width:420px;padding-top:36px;">
     <div class="numletto-logo">
       <div class="logo-tiles">
@@ -868,6 +936,21 @@
 <!-- ターン移行バナー -->
 <div id="turnBanner"><span id="turnBannerName">—</span><small>YOUR TURN</small></div>
 
+<!-- 向き選択ダイアログ -->
+<div id="orientModal" style="
+  display:none;position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:28px 32px;text-align:center;min-width:280px;">
+    <div style="font-size:0.65rem;letter-spacing:2px;color:var(--muted);margin-bottom:16px;">どちらの向きで置きますか？</div>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button id="orientBtnNormal" class="btn primary" style="font-size:1.4rem;padding:16px 24px;min-width:90px;" onclick="resolveOrient(false)">—</button>
+      <button id="orientBtnRev" class="btn" style="font-size:1.4rem;padding:16px 24px;min-width:90px;border-color:var(--accent);color:var(--accent);" onclick="resolveOrient(true)">—</button>
+    </div>
+  </div>
+</div>
+
 <!-- チェンジログ -->
 <div id="changelogOverlay" onclick="if(event.target===this)closeChangelog()">
   <div id="changelogCard">
@@ -876,6 +959,17 @@
     <button id="changelogClose" onclick="closeChangelog()">CLOSE</button>
   </div>
 </div>
+<!-- カードエリアドロワー（position:fixedで常時存在） -->
+<div class="card-area-drawer" id="cardAreaDrawer">
+  <div class="card-scatter" id="cardScatter"></div>
+  <div class="card-area-handle" onclick="toggleCardArea()">
+    <span class="handle-arrow">▲</span>
+    <span class="handle-label">カードエリア</span>
+    <span class="handle-arrow">▲</span>
+  </div>
+</div>
+<!-- ドラッグゴースト -->
+<div id="dragGhost"></div>
 <!-- パーティクルコンテナ -->
 <div id="particles"></div>
 
@@ -919,24 +1013,12 @@
       </div>
     </div>
 
-    <!-- ② 山札（全展開） -->
-    <div class="pool-section">
-      <div class="pool-label-row">
-        <span class="center-label">山 札</span>
-        <span class="pool-count-badge" id="poolCountBadge">— 枚</span>
-        <span style="font-size:0.58rem;color:var(--muted);">裏向きのタイルから1枚選んで引く</span>
-      </div>
-      <div class="pool-grid" id="poolGrid"></div>
-    </div>
-
-    <!-- ③ 捨て場 -->
-    <div class="discard-section">
-      <div class="pool-label-row">
-        <span class="center-label">捨て場</span>
-        <span style="font-size:0.58rem;color:var(--muted);">捨てられたタイル（裏向き）— クリックしてめくって取得</span>
-      </div>
-      <div class="discard-scroll" id="discardScroll"></div>
-    </div>
+    <!-- ② カードエリアトリガー -->
+    <button class="card-area-trigger" id="cardAreaTrigger" onclick="toggleCardArea()">
+      <div class="trigger-icon" id="triggerIcon"></div>
+      <div class="trigger-label">カードエリア</div>
+      <div class="trigger-hint">クリックして開く</div>
+    </button>
 
   </div>
 
@@ -965,24 +1047,19 @@ let heartbeatTimer = null;
 let reconnectAttempt = 0; // バックオフ用カウンタ
 
 // 「接続する」ボタン
-// URLパラメータから部屋名を自動入力
+// URLパラメータから自動接続
 (function autoFillRoom(){
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
   const name = params.get('name');
-  if(room){
-    const inp = document.getElementById('roomIdInput');
-    if(inp) inp.value = room.toUpperCase();
+  // パラメータなし→indexにリダイレクト
+  if(!room || !name){
+    location.replace('./index.html');
+    return;
   }
-  if(name){
-    const inp = document.getElementById('myNameInput');
-    if(inp) inp.value = name;
-  }
-  // 両方揃っていたら自動接続（titleOverlayを即非表示）
-  if(room && name){
-    document.getElementById('titleOverlay').classList.add('hidden');
-    setTimeout(()=>connectAction(), 200);
-  }
+  document.getElementById('roomIdInput').value = room.toUpperCase();
+  document.getElementById('myNameInput').value = name;
+  setTimeout(()=>connectAction(), 0);
 })();
 
 function connectAction(){
@@ -1082,7 +1159,11 @@ function connectToRoom(roomId) {
       if(ws) ws._attempt = 0; reconnectAttempt = 0; // 再接続成功でバックオフリセット
       const prevAct = act;
       const prevPlayer = G ? G.currentPlayer : -1;
-      const prevG = G ? {lastLog:G.lastLog?{t:G.lastLog.t}:null, result:G.result} : null;
+      const prevG = G ? {
+        lastLog: G.lastLog ? {t:G.lastLog.t} : null,
+        result: G.result,
+        _hands: G.players ? G.players.map(p=>p.hand.map(h=>({revealed:h.revealed}))) : null
+      } : null;
       G = msg.G;
       const inSetup = G.playerSetups && G.playerSetups.some(s=>!s.done);
       setupPhase = inSetup ? true : null;
@@ -1099,10 +1180,12 @@ function connectToRoom(roomId) {
 
       act = newAct;
 
-      // 自分のターン開始SE（ターンが自分に切り替わった瞬間）
+      // 自分のターン開始SE（ターンが自分に切り替わった瞬間、またはactが解消して自分のターンになった瞬間）
       const myPi = myName ? G.players.findIndex(p=>p.name===myName) : -1;
       if(myPi>=0 && !inSetup && !G.gameOver){
-        if(prevPlayer !== G.currentPlayer && G.currentPlayer === myPi){
+        const turnJustSwitchedToMe = prevPlayer !== G.currentPlayer && G.currentPlayer === myPi;
+        const actJustClearedOnMyTurn = prevAct && !newAct && G.currentPlayer === myPi;
+        if(turnJustSwitchedToMe || actJustClearedOnMyTurn){
           playSound('myturn');
           showTurnBanner(G.players[myPi].name);
         }
@@ -1170,6 +1253,31 @@ function connectToRoom(roomId) {
         }
       }
       checkEffectCardSync();
+
+      // 他プレイヤーのアニメーションを検出してフラグを設定
+      if(isOtherPlayer && prevG && prevG._hands){
+        const cp = G.currentPlayer;
+        const prevHand = prevG._hands[cp];
+        const newHand  = G.players[cp].hand;
+        if(prevHand && newHand){
+          if(prevHand.length === newHand.length){
+            // 同じ長さ → スワップ（裏→表に変わったスロット）
+            for(let i=0;i<newHand.length;i++){
+              if(!prevHand[i].revealed && newHand[i].revealed){
+                swapAnim={pi:cp, hi:i}; break;
+              }
+            }
+          } else if(newHand.length > prevHand.length){
+            // 長さ増加 → 差し込み（新たに revealed:true になったスロット）
+            for(let i=0;i<newHand.length;i++){
+              if(newHand[i].revealed && (!prevHand[i] || !prevHand[i].revealed)){
+                insertAnim={pi:cp, hi:i}; break;
+              }
+            }
+          }
+        }
+      }
+
       render();
     }
 
@@ -1545,6 +1653,234 @@ function appendLog(msg,cls=''){
 //  GAME START (ホストのみ hostStartGame() で実行)
 // ════════════════════════════════════════════
 
+
+// ════════════════════════════════════════════
+//  CARD AREA (引き出しドロワー)
+// ════════════════════════════════════════════
+let cardAreaOpen = false;
+// タイルの散らばり座標（相対値 0〜1）
+// G.pool / G.discard のインデックスと対応
+let scatterPool = [];    // [{rx,ry,rot,z}, ...]  G.poolと同順
+let scatterDiscard = []; // [{rx,ry,rot,z}, ...]  G.discardと同順
+
+const SCATTER_PAD = 0.06;
+const SCATTER_TW = 48, SCATTER_TH = 60;
+const OVERLAP_LIMIT = 0.35;
+
+function initCardArea(){
+  // ドロワー高さを設定
+  const h = Math.round(window.innerHeight / 3);
+  document.documentElement.style.setProperty('--drawer-h', h + 'px');
+  document.documentElement.style.setProperty('--header-h', '38px');
+  // トリガーアイコン描画
+  renderTriggerIcon();
+  // pool座標初期化
+  if(G && G.pool){
+    scatterPool = G.pool.map(()=>randomScatterCoord());
+  }
+  if(G && G.discard){
+    scatterDiscard = G.discard.map(()=>randomScatterCoord());
+  }
+  renderCardArea();
+}
+
+function randomScatterCoord(){
+  return {
+    rx: randF(SCATTER_PAD, 1-SCATTER_PAD),
+    ry: randF(SCATTER_PAD, 1-SCATTER_PAD),
+    rot: randF(-20, 20),
+    z: Math.floor(randF(1,15))
+  };
+}
+function randF(a,b){return Math.random()*(b-a)+a;}
+
+function toggleCardArea(){
+  cardAreaOpen = !cardAreaOpen;
+  document.getElementById('cardAreaDrawer').classList.toggle('open', cardAreaOpen);
+  if(cardAreaOpen) renderCardArea();
+}
+
+// scatter座標がG.poolと同期しているか確認・補完
+function syncScatterToPool(){
+  if(!G || !G.pool) return;
+  while(scatterPool.length < G.pool.length) scatterPool.push(randomScatterCoord());
+  scatterPool = scatterPool.slice(0, G.pool.length);
+}
+function syncScatterToDiscard(){
+  if(!G || !G.discard) return;
+  while(scatterDiscard.length < G.discard.length){
+    // 新しく捨てられたタイルの座標は後で設定されるのでダミーを入れる
+    scatterDiscard.push(randomScatterCoord());
+  }
+  scatterDiscard = scatterDiscard.slice(0, G.discard.length);
+}
+
+function renderCardArea(){
+  syncScatterToPool();
+  syncScatterToDiscard();
+  const scatter = document.getElementById('cardScatter');
+  if(!scatter) return;
+  const W = scatter.clientWidth, H = scatter.clientHeight;
+  if(!W || !H) return;
+  scatter.querySelectorAll('.scatter-tile,.scatter-who-el').forEach(e=>e.remove());
+
+  const cp = G ? G.currentPlayer : -1;
+  const isMyTurnNow = !myName || (G && G.players[cp] && G.players[cp].name === myName);
+  const canDraw = isMyTurnNow && !act && G && !G.gameOver;
+  const canIkka = isMyTurnNow && act && act.phase === 'awaitIkkaPool';
+
+  // 山札タイル
+  if(G && G.pool){
+    G.pool.forEach((tile, pi)=>{
+      const sc = scatterPool[pi] || randomScatterCoord();
+      const x = sc.rx*(W-SCATTER_TW), y = sc.ry*(H-SCATTER_TH);
+      const el = document.createElement('div');
+      el.className = 'scatter-tile pool-tile' + (canIkka?' ikka-target':'');
+      el.style.cssText = `left:${x}px;top:${y}px;z-index:${sc.z};--rot:${sc.rot}deg;transform:rotate(${sc.rot}deg);`;
+      if(canDraw){ const _pi=pi; el.onclick=()=>{ toggleCardArea(); flipPoolTile(_pi,el); }; }
+      if(canIkka){ const _pi=pi; el.onclick=()=>ikkaSelectPool(_pi); }
+      scatter.appendChild(el);
+    });
+  }
+
+  // 捨て場タイル
+  if(G && G.discard){
+    G.discard.forEach((entry, di)=>{
+      const sc = scatterDiscard[di] || randomScatterCoord();
+      const x = sc.rx*(W-SCATTER_TW), y = sc.ry*(H-SCATTER_TH);
+      const canTake = isMyTurnNow && !act && G && !G.gameOver;
+      const canIkkaDiscard = isMyTurnNow && act && act.phase === 'awaitIkkaPool' && !entry.faceUp;
+      const showFace = entry.faceUp === true;
+      let unplaceable = false;
+      if(showFace && canTake && G){
+        const hand = G.players[cp].hand;
+        const blindIdxList = hand.map((h,i)=>h.revealed?-1:i).filter(i=>i>=0);
+        unplaceable = !blindIdxList.some(hi=>{
+          const t=entry.tile;
+          return canFit(hand,hi,t.num)||(t.rev&&canFit(hand,hi,t.rev));
+        });
+      }
+      const el = document.createElement('div');
+      el.className = 'scatter-tile discard-tile'
+        + (canTake&&!unplaceable?' takeable':'')
+        + (unplaceable?' unplaceable':'')
+        + (canIkkaDiscard?' ikka-target':'');
+      el.style.cssText = `left:${x}px;top:${y}px;z-index:${sc.z};--rot:${sc.rot}deg;transform:rotate(${sc.rot}deg);`;
+      el.textContent = showFace ? entry.tile.num : '';
+      if(entry.isNew){ const dot=document.createElement('div');dot.className='new-dot';el.appendChild(dot); }
+      if(canTake&&!unplaceable){ const _di=di; el.onclick=()=>{ toggleCardArea(); takeDiscard(_di); }; }
+      if(canIkkaDiscard){ const _di=di; el.onclick=()=>ikkaSelectDiscard(_di); }
+      // 名前ラベル
+      const who = document.createElement('div');
+      who.className='scatter-who scatter-who-el';
+      who.textContent = entry.discardedBy || '？';
+      who.style.cssText=`position:absolute;left:${x}px;top:${y+SCATTER_TH+2}px;z-index:${sc.z};font-size:0.42rem;color:var(--muted);white-space:nowrap;pointer-events:none;transform:translateX(0);`;
+      scatter.appendChild(el);
+      scatter.appendChild(who);
+    });
+  }
+}
+
+// ── ドラッグ&ドロップで捨てる ──
+let _dragState = null;
+
+function initHandDrag(){
+  // 自分の手札タイルにドラッグイベントを付与（renderGame内で呼ぶ）
+}
+
+function startTileDrag(e, hi, num){
+  if(e.button !== 0) return;
+  e.preventDefault();
+  const ghost = document.getElementById('dragGhost');
+  ghost.textContent = num;
+  ghost.style.opacity = '1';
+  ghost.style.left = (e.clientX-24)+'px';
+  ghost.style.top  = (e.clientY-30)+'px';
+  ghost.style.transform = `rotate(${randF(-12,12)}deg)`;
+  _dragState = {hi, num};
+  document.addEventListener('mousemove', _onDragMove);
+  document.addEventListener('mouseup',   _onDragEnd);
+}
+function _onDragMove(e){
+  if(!_dragState) return;
+  const ghost=document.getElementById('dragGhost');
+  ghost.style.left=(e.clientX-24)+'px';
+  ghost.style.top =(e.clientY-30)+'px';
+  const drawer=document.getElementById('cardAreaDrawer');
+  const rect=drawer.getBoundingClientRect();
+  const over=cardAreaOpen&&e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  drawer.style.outline=over?'2px dashed rgba(232,212,77,0.35)':'';
+}
+function _onDragEnd(e){
+  if(!_dragState) return;
+  document.removeEventListener('mousemove',_onDragMove);
+  document.removeEventListener('mouseup',  _onDragEnd);
+  const ghost=document.getElementById('dragGhost');
+  ghost.style.opacity='0';
+  document.getElementById('cardAreaDrawer').style.outline='';
+  const scatter=document.getElementById('cardScatter');
+  const rect=scatter.getBoundingClientRect();
+  const inZone=cardAreaOpen&&e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  if(inZone){
+    // ドロップ座標を相対値に変換
+    let rx=Math.max(SCATTER_PAD,Math.min((e.clientX-rect.left-SCATTER_TW/2)/(rect.width-SCATTER_TW),1-SCATTER_PAD));
+    let ry=Math.max(SCATTER_PAD,Math.min((e.clientY-rect.top -SCATTER_TH/2)/(rect.height-SCATTER_TH),1-SCATTER_PAD));
+    // 干渉チェック
+    const placed=scatterFindFreeSpot(rx,ry,scatterPool.concat(scatterDiscard),rect.width,rect.height);
+    // G.discard に追加する座標を記録
+    scatterDiscard.push({rx:placed.rx,ry:placed.ry,rot:randF(-20,20),z:50+scatterDiscard.length});
+    // 実際の捨て処理を呼ぶ
+    cannotPlace();
+  }
+  render();
+  _dragState=null;
+}
+
+function scatterOverlapRatio(ax,ay,bx,by){
+  const ox=Math.max(0,Math.min(ax+SCATTER_TW,bx+SCATTER_TW)-Math.max(ax,bx));
+  const oy=Math.max(0,Math.min(ay+SCATTER_TH,by+SCATTER_TH)-Math.max(ay,by));
+  return (ox*oy)/(SCATTER_TW*SCATTER_TH);
+}
+function scatterFindFreeSpot(rx,ry,existing,W,H){
+  const check=(crx,cry)=>{
+    const cx=crx*(W-SCATTER_TW),cy=cry*(H-SCATTER_TH);
+    return existing.every(t=>{
+      const tx=t.rx*(W-SCATTER_TW),ty=t.ry*(H-SCATTER_TH);
+      return scatterOverlapRatio(cx,cy,tx,ty)<=OVERLAP_LIMIT;
+    });
+  };
+  if(check(rx,ry)) return {rx,ry};
+  const step=0.06;
+  for(let r=step;r<0.8;r+=step){
+    const tries=Math.max(8,Math.round(2*Math.PI*r/step));
+    for(let i=0;i<tries;i++){
+      const angle=(2*Math.PI*i/tries)+randF(0,0.3);
+      const cx=Math.min(Math.max(rx+Math.cos(angle)*r,SCATTER_PAD),1-SCATTER_PAD);
+      const cy=Math.min(Math.max(ry+Math.sin(angle)*r,SCATTER_PAD),1-SCATTER_PAD);
+      if(check(cx,cy)) return {rx:cx,ry:cy};
+    }
+  }
+  return {rx,ry};
+}
+
+function renderTriggerIcon(){
+  const icon=document.getElementById('triggerIcon');
+  if(!icon) return;
+  icon.innerHTML='';
+  [-18,-8,2,12,22].forEach((a,i)=>{
+    const el=document.createElement('div');
+    el.className='trigger-mini-tile';
+    el.style.cssText=`left:${i*10}px;top:${Math.abs(a)*0.3}px;transform:rotate(${a}deg);z-index:${i};`;
+    icon.appendChild(el);
+  });
+}
+
+window.addEventListener('resize',()=>{
+  const h=Math.round(window.innerHeight/3);
+  document.documentElement.style.setProperty('--drawer-h',h+'px');
+  if(cardAreaOpen) renderCardArea();
+});
+
 // ════════════════════════════════════════════
 //  MASTER RENDER
 // ════════════════════════════════════════════
@@ -1690,6 +2026,7 @@ function insertRevealTile(pi, gapIdx){
     G.currentPlayer=0;G.round=1;
     document.getElementById('actionPanel').style.display='';
     document.getElementById('centerZone').style.display='';
+  initCardArea();
     log('全員の配置完了！ゲームスタート！','highlight');
     syncToServer();
     render();return;
@@ -1842,6 +2179,12 @@ function renderGame(){
         el.textContent=h.revealed?h.tile.num:'';
         if(h.revealed&&h.tile.rev)el.title=`逆さ:${h.tile.rev}`;
         if(canSelect&&!h.revealed)el.onclick=()=>clickHandTile(pi,hi);
+        // 自分の表タイルはドラッグで捨て場へ
+        if(h.revealed&&isActive&&act&&act.phase==='awaitSwap'){
+          el.style.cursor='grab';
+          const _hi=hi,_num=h.tile.num;
+          el.addEventListener('mousedown',(e)=>startTileDrag(e,_hi,_num),{once:true});
+        }
         // スワップアニメ（裏タイル交換で表になったタイル）
         if(swapAnim && swapAnim.pi===pi && swapAnim.hi===hi){
           el.classList.add('just-swapped-in');
@@ -1864,13 +2207,6 @@ function renderGame(){
           el.onclick=()=>executeDonguri(_pi,_hi);
         }
         // awaitDiscardBlind: 自分の裏タイルをクリック可能に
-        if(act&&act.phase==='awaitDiscardBlind'&&!h.revealed&&pi===G.currentPlayer&&(!myName||G.players[G.currentPlayer].name===myName)){
-          el.style.borderColor='#ffd700';
-          el.style.boxShadow='0 0 14px rgba(255,215,0,0.8)';
-          el.style.cursor='pointer';
-          const _hi=hi;
-          el.onclick=()=>discardBlindTile(_hi);
-        }
         tileRow.appendChild(el);
       });
     }
@@ -1901,61 +2237,10 @@ function renderGame(){
     if(discardBtn)discardBtn.style.display='none';
   }
 
-  // ── 山札グリッド ──
-  const poolGrid=document.getElementById('poolGrid');
-  const poolCountBadge=document.getElementById('poolCountBadge');
-  poolGrid.innerHTML='';
-  poolCountBadge.textContent=`${G.pool.length} 枚`;
-  const isMyTurnNow=!myName||G.players[G.currentPlayer].name===myName;
-  const canDraw=isMyTurnNow&&!act&&!G.gameOver;
-  const canIkka=isMyTurnNow&&act&&act.phase==='awaitIkkaPool';
-  G.pool.forEach((tile,pi2)=>{
-    const el=document.createElement('div');
-    el.className=`tile face-down${canDraw?' pool-tile':''}${canIkka?' ikka-target':''}`;
-    if(canDraw)el.onclick=()=>flipPoolTile(pi2,el);
-    if(canIkka){const _i=pi2;el.onclick=()=>ikkaSelectPool(_i);}
-    poolGrid.appendChild(el);
-  });
-
-  // ── 捨て場 ── 裏向き（faceUpのみ表向き）、クリックで取得
-  const discardScroll=document.getElementById('discardScroll');
-  discardScroll.innerHTML='';
-  // Show newest first (reverse)
-  [...G.discard].reverse().forEach((entry,di)=>{
-    const realIdx=G.discard.length-1-di;
-    const wrapper=document.createElement('div');
-    wrapper.className='discard-entry';
-    const canTake=isMyTurnNow&&!act&&!G.gameOver;
-    const canIkkaDiscard=isMyTurnNow&&act&&act.phase==='awaitIkkaPool'&&!entry.faceUp;
-    const tileEl=document.createElement('div');
-    const showFace=entry.faceUp===true;
-    // 表向きタイルが手札に置けるか確認
-    let placeable=true;
-    if(showFace&&canTake){
-      const hand=G.players[G.currentPlayer].hand;
-      const blindIdxList=hand.map((h,i)=>h.revealed?-1:i).filter(i=>i>=0);
-      placeable=blindIdxList.some(hi=>{
-        const t=entry.tile;
-        return canFit(hand,hi,t.num)||(t.rev&&canFit(hand,hi,t.rev));
-      });
-    }
-    const unplaceable=showFace&&canTake&&!placeable;
-    tileEl.className=`tile ${showFace?'face-up':'face-down'}${canTake&&!unplaceable?' pool-tile':''}${unplaceable?' unplaceable':''}${canIkkaDiscard?' ikka-target':''}`;
-    tileEl.textContent=showFace?entry.tile.num:'';
-    if(showFace&&entry.tile.rev)tileEl.title=`逆さ:${entry.tile.rev}`;
-    if(entry.isNew){
-      const dot=document.createElement('div');dot.className='new-dot';
-      tileEl.appendChild(dot);
-    }
-    if(canTake&&!unplaceable)tileEl.onclick=()=>takeDiscard(realIdx);
-    if(canIkkaDiscard)tileEl.onclick=()=>ikkaSelectDiscard(realIdx);
-    const who=document.createElement('div');who.className='discard-who';
-    // 裏向きは誰が捨てたか表示（数字は伏せる）
-    who.textContent=entry.discardedBy||'？';
-    wrapper.appendChild(tileEl);
-    wrapper.appendChild(who);
-    discardScroll.appendChild(wrapper);
-  });
+  // ── カードエリア描画 ──
+  syncScatterToPool();
+  syncScatterToDiscard();
+  renderCardArea();
 
   // ── Action panel ──
   document.getElementById('actionPanel').style.display='';
@@ -2015,6 +2300,44 @@ function renderGame(){
 // ════════════════════════════════════════════
 
 // ⓪ 引いたタイルをひっくり返す（逆さ/正向き切り替え）
+function resolveOrient(useRev){
+  if(window._orientResolve) window._orientResolve(useRev);
+}
+
+function executeSwap(pi, hi, useNum){
+  const player = G.players[pi];
+  const removed = player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
+  swapAnim = {pi, hi};
+  G.discard.forEach(e=>e.isNew=false);
+  playSound('discard');
+  G.discard.push({tile:removed.tile, discardedBy:player.name, faceUp:false, isNew:true});
+  const bonus = isConsecutive(player.hand, hi);
+  const bonusLabel = bonus===2?'🎉🎉 ダブル連番！':'🎉 連番！';
+  log(`${player.name}: [${useNum}] を配置。`, bonus?'highlight':'');
+  act=null; G.act=null; player.turns++;
+  // 達成進捗を記録
+  const revealedNow = player.hand.filter(h=>h.revealed).length;
+  if(!player.progressHistory) player.progressHistory=[[0,0]];
+  player.progressHistory.push([G.round, revealedNow]);
+  checkWin(G.currentPlayer);
+  if(!G.gameOver){
+    if(bonus>0){
+      playSound('bonus');
+      log(`${bonusLabel}${player.name} が効果カードを引く！${bonus===2?'（使用後もう1枚！）':''}`, 'highlight');
+      bonusEffect(pi, hi);
+      act={phase:'awaitEffectCard', playerIdx:G.currentPlayer, doubleBonus:bonus===2, usedFirst:false};
+      G.act=act;
+      drawEffectCard();
+      return;
+    } else {
+      playSound('place');
+      nextTurn();
+    }
+  }
+  syncToServer();
+  render();
+}
+
 function flipDrawnTile(){
   if(!act||act.phase!=='awaitSwap'||!act.drawnTile.rev)return;
   act.useRev=!act.useRev;
@@ -2077,53 +2400,33 @@ function clickHandTile(pi,hi){
 
   if(act.phase==='awaitSwap'){
     if(player.hand[hi].revealed){log('表向きのタイルとは交換できません！','error');flashTile(pi,hi);return;}
-    const drawn=act.drawnTile.num,rev=act.drawnTile.rev;
-    // プレイヤーが選んだ向き（useRevフラグ）を優先、なければ自動選択
-    let useNum;
-    if(act.useRev&&rev){
-      useNum=rev;
-    } else {
-      useNum=drawn;
-      if(rev&&!canFit(player.hand,hi,drawn)&&canFit(player.hand,hi,rev))useNum=rev;
-    }
-    if(!canFit(player.hand,hi,useNum)){
-      // 逆さ向きも試す
-      const altNum=act.useRev?drawn:rev;
-      if(altNum&&canFit(player.hand,hi,altNum)){useNum=altNum;}
-      else{playSound('error');log(`[${useNum}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error');flashTile(pi,hi);return;}
-    }
-    const removed=player.hand.splice(hi,1,{tile:{num:useNum,rev:null},revealed:true})[0];
-    swapAnim={pi, hi};
-    // 交換で出た裏タイルは裏向きで捨て場へ
-    G.discard.forEach(e=>e.isNew=false);
-    playSound('discard');
-    G.discard.push({tile:removed.tile,discardedBy:player.name,faceUp:false,isNew:true});
-    const bonus=isConsecutive(player.hand,hi);
-    const bonusLabel=bonus===2?'🎉🎉 ダブル連番！':'🎉 連番！';
-    log(`${player.name}: [${useNum}] を配置。`,bonus?'highlight':'');
-    act=null;G.act=null;player.turns++;
-    // 達成進捗を記録（[ラウンド数, 達成枚数]）X軸=全員共通のラウンド
-    const revealedNow=player.hand.filter(h=>h.revealed).length;
-    if(!player.progressHistory) player.progressHistory=[[0,0]];
-    player.progressHistory.push([G.round, revealedNow]);
-    checkWin(G.currentPlayer);
-    if(!G.gameOver){
-      if(bonus>0){
-        playSound('bonus');
-        log(`${bonusLabel}${player.name} が効果カードを引く！${bonus===2?'（使用後もう1枚！）':''}`, 'highlight');
-        bonusEffect(pi,hi);
-        act={phase:'awaitEffectCard',playerIdx:G.currentPlayer,doubleBonus:bonus===2,usedFirst:false};
-        G.act=act;
-        drawEffectCard(); // drawEffectCard内でeffectCardsセット後にsyncToServer
-        return;
-      } else {
-        playSound('place');
-        nextTurn();
-      }
-    }
-    syncToServer();
-    render();
+    const drawn=act.drawnTile.num, rev=act.drawnTile.rev;
+    const fitsNormal = canFit(player.hand,hi,drawn);
+    const fitsRev    = rev && canFit(player.hand,hi,rev);
 
+    // 両方向で置ける → ダイアログで確認
+    if(fitsNormal && fitsRev){
+      const modal = document.getElementById('orientModal');
+      document.getElementById('orientBtnNormal').textContent = drawn;
+      document.getElementById('orientBtnRev').textContent    = rev;
+      modal.style.display = 'flex';
+      // 解決関数をグローバルに設定
+      window._orientResolve = (useRev) => {
+        modal.style.display = 'none';
+        window._orientResolve = null;
+        executeSwap(pi, hi, useRev ? rev : drawn);
+      };
+      return;
+    }
+
+    // 片方だけ置ける or useRevで明示指定
+    let useNum;
+    if(act.useRev===true && fitsRev)       useNum = rev;
+    else if(act.useRev===false && fitsNormal) useNum = drawn;
+    else if(fitsNormal)  useNum = drawn;
+    else if(fitsRev)     useNum = rev;
+    else { playSound('error'); log(`[${drawn}] は ${neighborStr(player.hand,hi)} の間に置けません！`,'error'); flashTile(pi,hi); return; }
+    executeSwap(pi, hi, useNum);
   }else if(act.phase==='awaitMoveBlind'){
     if(player.hand[hi].revealed){log('表向きタイルは移動できません！','error');return;}
     act.phase='awaitMoveInsert';act.selectedHandIdx=hi;
@@ -2140,48 +2443,49 @@ const EFFECT_CARDS = [
     name:'どんぐりころころ',
     desc:'任意の表向きタイルを1枚裏返す。\n自分の手札も対象にできる。',
     color:'#f0a030',
+    icon:'🌰',
   },
   {
     id:'mouikkai',
     name:'もう一回！',
     desc:'もう一度自分のターンになる。',
     color:'#5ab4e0',
-  },
-  {
-    id:'mouikkai', // 2枚目
-    name:'もう一回！',
-    desc:'もう一度自分のターンになる。',
-    color:'#5ab4e0',
+    icon:'🔁',
   },
   {
     id:'tobashi',
     name:'ひとつ飛ばしてべっぴんさん',
     desc:'次のプレイヤーの手番をスキップする。',
     color:'#7de87a',
+    icon:'⏭',
   },
   {
     id:'ladyfirst',
     name:'レディーファースト',
     desc:'自分以外のプレイヤーを1人選択。\nそのプレイヤーのターンになる。',
     color:'#e070f0',
+    icon:'👑',
   },
   {
     id:'kousokukaiten',
     name:'高速回転',
-    desc:'回転速度が速すぎて逆回転に見える（逆回転になる）',
+    desc:'ターン順が逆回転になる。',
     color:'#ff6060',
+    icon:'🔄',
   },
   {
     id:'ichikabachika',
     name:'一か八か',
     desc:'コインフリップ。表が出たら手札の裏向きタイルを1枚捨てられる。\n裏が出たら自分の表タイルが1枚ランダムで裏返される。',
     color:'#ffd700',
+    icon:'🪙',
   },
   {
     id:'omaenomono',
     name:'お前のものは俺の物',
     desc:'ランダムなプレイヤーと手札をすべて交換する。',
     color:'#ff8c00',
+    icon:'🤝',
   },
 ];
 
@@ -2192,38 +2496,45 @@ let drawnEffectCards = []; // 2枚引いた候補
 function drawEffectCard(){
   if(!act||act.phase!=='awaitEffectCard')return;
   if(!myName||G.players[G.currentPlayer].name===myName){
-    // 2枚ランダムに引く（重複あり）
-    const idx1=Math.floor(Math.random()*EFFECT_CARDS.length);
-    let idx2=Math.floor(Math.random()*EFFECT_CARDS.length);
-    // なるべく違うカードを選ぶ（同じなら再抽選1回）
-    if(idx2===idx1&&EFFECT_CARDS.length>1){
-      idx2=(idx1+1+Math.floor(Math.random()*(EFFECT_CARDS.length-1)))%EFFECT_CARDS.length;
+    const isDouble = act.doubleBonus && !act.usedFirst;
+    let chosen;
+    if(isDouble){
+      // ダブル連番: 全カードから選択（重複排除）
+      chosen = [...EFFECT_CARDS];
+    } else {
+      // 通常: 2枚ランダム
+      const idx1=Math.floor(Math.random()*EFFECT_CARDS.length);
+      let idx2=(idx1+1+Math.floor(Math.random()*(EFFECT_CARDS.length-1)))%EFFECT_CARDS.length;
+      chosen=[EFFECT_CARDS[idx1],EFFECT_CARDS[idx2]];
     }
-    drawnEffectCards=[EFFECT_CARDS[idx1],EFFECT_CARDS[idx2]];
-    drawnEffectCard=null; // 選択前はnull
-    act.effectCards=[drawnEffectCards[0].id,drawnEffectCards[1].id];
+    drawnEffectCards=chosen;
+    drawnEffectCard=null;
+    act.effectCards=chosen.map(c=>c.id);
+    act.isDoubleChoice=isDouble;
     G.act=act;
     syncToServer();
-    openEffectCardChoiceModal(drawnEffectCards);
+    openEffectCardChoiceModal(chosen, isDouble);
   }
 }
 
-function openEffectCardChoiceModal(cards){
-  // 単体モーダルを隠して2択UIを表示
+function openEffectCardChoiceModal(cards, isDouble){
   document.getElementById('effectCardInner').style.display='none';
   const container=document.getElementById('ecChoiceContainer');
   container.style.display='block';
+  document.getElementById('ecChoiceLabel').textContent = isDouble
+    ? '🎉🎉 ダブル連番！ — 全カードから選べます'
+    : '✦ EFFECT CARD — どちらを発動しますか？ ✦';
   const wrap=document.getElementById('ecChoiceWrap');
   wrap.innerHTML=cards.map((card,i)=>`
     <div class="ec-card-choice" onclick="selectEffectCard(${i})"
-      style="border-color:${card.color}22;">
+      style="border-color:${card.color}44;">
+      <span class="ec-card-icon">${card.icon||'✦'}</span>
       <div class="ec-card-label">✦ EFFECT CARD</div>
       <div class="ec-card-name" style="color:${card.color};">${card.name}</div>
       <div class="ec-card-divider" style="background:${card.color};"></div>
       <div class="ec-card-desc">${card.desc}</div>
       <div class="ec-card-select">▶ 選択する</div>
     </div>
-    
   `).join('');
   document.getElementById('effectCardModal').classList.add('show');
   playSound('effectcard');
@@ -2700,7 +3011,7 @@ function checkEffectCardSync(){
       if(!modal.classList.contains('show')){
         if(G.act.effectCards){
           const cards=G.act.effectCards.map(id=>EFFECT_CARDS.find(c=>c.id===id)).filter(Boolean);
-          if(cards.length>=2) openEffectCardChoiceModal(cards);
+          if(cards.length>=2) openEffectCardChoiceModal(cards, G.act.isDoubleChoice);
         }
       }
       return;
@@ -2783,6 +3094,15 @@ function cannotPlace(){
   if(myName && G.players[G.currentPlayer].name !== myName)return;
   G.discard.forEach(e=>e.isNew=false);
   // 置けなかったタイルは表向きで捨て場へ（全員に数字が分かる）
+  // scatterDiscardに座標が既に追加済みでなければランダム追加
+  if(scatterDiscard.length <= G.discard.length){
+    const scatter=document.getElementById('cardScatter');
+    const W=scatter?scatter.clientWidth:400, H=scatter?scatter.clientHeight:200;
+    const all=scatterPool.concat(scatterDiscard);
+    const rx=randF(SCATTER_PAD,1-SCATTER_PAD), ry=randF(SCATTER_PAD,1-SCATTER_PAD);
+    const placed=scatterFindFreeSpot(rx,ry,all,W,H);
+    scatterDiscard.push({rx:placed.rx,ry:placed.ry,rot:randF(-20,20),z:50+scatterDiscard.length});
+  }
   G.discard.push({tile:act.drawnTile,discardedBy:G.players[G.currentPlayer].name,faceUp:true,isNew:true});
   playSound('discard');
   log(`${G.players[G.currentPlayer].name}: [${act.drawnTile.num}] は置けず → 表向きで捨て場へ。`,'error');
@@ -3034,12 +3354,12 @@ function openResult(){
 
     <div style="border-top:1px solid #1e1e1e;padding-top:16px;">
       ${myVote ? `
-        <div style="font-size:0.65rem;color:#555;text-align:center;margin-bottom:12px;">投票済み: ${myVote==='rematch'?'🔁 再戦':'🚪 退出'}</div>
+        <div style="font-size:0.65rem;color:#555;text-align:center;margin-bottom:12px;">投票済み: ${myVote==='rematch'?'🔁 再戦':'🚪 退室'}</div>
       ` : `
         <div style="font-size:0.62rem;color:#555;text-align:center;margin-bottom:10px;letter-spacing:1px;">VOTE</div>
         <div style="display:flex;gap:8px;">
           <button class="btn primary" onclick="voteResult('rematch')" style="flex:1;padding:11px;font-size:0.75rem;letter-spacing:2px;">🔁 再戦</button>
-          <button class="btn" onclick="voteResult('leave')" style="flex:1;padding:11px;font-size:0.72rem;border-color:#444;color:#666;">🚪 退出</button>
+          <button class="btn" onclick="voteResult('leave')" style="flex:1;padding:11px;font-size:0.72rem;border-color:#444;color:#666;">🚪 退室</button>
         </div>
       `}
       <div style="margin-top:10px;font-size:0.6rem;color:#444;text-align:center;">${voteCount}/${totalPlayers} 投票済み${rematchCount>0?' · 再戦 '+rematchCount+'票':''}</div>
@@ -3077,7 +3397,7 @@ function checkVotes(){
     if(amIHost) setTimeout(()=>rematch(), 500);
   } else {
     // 退出票あり → 自分が退出を選んでいたらリロード
-    if(r.votes[myName]==='leave') setTimeout(()=>location.reload(), 600);
+    if(r.votes[myName]==='leave') setTimeout(()=>location.replace('./index.html'), 600);
   }
 }
 
